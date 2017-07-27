@@ -26,10 +26,8 @@
     <bean id="cacheService" class="com.yit.common.utils.cache.CacheService" />
     <bean id="keyValueService" class="com.yit.common.utils.keyvalue.KeyValueService" />
 
-    <bean class="com.yit.option.BatchRemoveSaleOptionRunner" init-method="start"/>
+    <bean class="com.yit.runner.SpuStockMigrationRunner" init-method="start"/>
 
-  <!--  <bean class="com.yit.common.utils.topic.TopicService1" id="topicService1"/>
-    <bean class="com.yit.common.utils.topic.TopicService2" id="topicService2"/>-->
     <bean id="queueService" class="com.yit.common.utils.queue.QueueService"/>
 
 
