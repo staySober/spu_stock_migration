@@ -70,30 +70,43 @@ public class SpuStockMigrationRunner extends BaseTest {
                     }
 
                     if (saleOptionIndex == -1) {
-                        throw new RuntimeException(String.format("SPU: %s 获取销售方式option下标发生异常,请检查该SPU是否有 销售方式 option!",product.id));
+                        throw new RuntimeException(
+                            String.format("SPU: %s 获取销售方式option下标发生异常,请检查该SPU是否有 销售方式 option!", product.id));
                     }
 
                     //todo 同规格不同销售方式的SKU合并成一个, 留下第一个创建的SKU, 销售方式文本写到库存记录里
 
                     //该spu option数量
                     int spuOptionCount = product.skuInfo.options.size();
-                    boolean twoSkuhaveSameOption = false;
+                    boolean twoSkuHaveSameOption = false;
+
                     for (int i = 0; i < spuOptionCount; i++) {
                         //如果销售方式一样,直接break
                         if (i == saleOptionIndex) {
                             if (skuRight.valueIds[i] == skuLeft.valueIds[i]) {
-                                twoSkuhaveSameOption = false;
+                                twoSkuHaveSameOption = false;
                                 break;
+                            } else {
+                                twoSkuHaveSameOption = true;
+                            }
+                        } else {
+                            //校验非销售方式的option
+                            if (skuRight.valueIds[i] != skuLeft.valueIds[i]) {
+                                twoSkuHaveSameOption = false;
+                                break;
+                            } else {
+                                twoSkuHaveSameOption = true;
                             }
                         }
-                        //校验非销售方式的option
-                        if (skuRight.valueIds[i] != skuLeft.valueIds[i]) {
-                            twoSkuhaveSameOption = false;
-                            break;
-                        }else {
-                            twoSkuhaveSameOption = true;
-                        }
+                    }
 
+                    //两个sku为规格相同 销售方式不同
+                    if (twoSkuHaveSameOption) {
+                        SKU deleteSku = skuLeft.id > skuRight.id ? skuLeft : skuRight;
+                        SKU saveSku = skuLeft.id > skuRight.id ? skuRight : skuLeft;
+
+                        //todo 把留下的SKU的销售方式文本写到库存记录里
+                        //todo 删除其他的SKU
                     }
 
                 }

@@ -27,6 +27,7 @@
     <bean id="keyValueService" class="com.yit.common.utils.keyvalue.KeyValueService" />
 
     <bean class="com.yit.runner.SpuStockMigrationRunner" init-method="start"/>
+    <bean class="com.yit.runner.SpuStockMigrationRunner2" init-method="start"/>
 
     <bean id="queueService" class="com.yit.common.utils.queue.QueueService"/>
 
