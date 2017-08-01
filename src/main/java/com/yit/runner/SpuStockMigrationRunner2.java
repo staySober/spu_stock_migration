@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.alibaba.dubbo.common.utils.CollectionUtils;
+
 import com.yit.common.utils.SqlHelper;
 import com.yit.product.api.ProductService;
 import com.yit.product.entity.Product;
@@ -37,6 +39,9 @@ public class SpuStockMigrationRunner2 extends BaseTest {
     //存放去除销售方式后product的容器
     List<Product> newProducts = new ArrayList<>();
 
+    //存放去除销售方式后product的容器
+    List<Product> oldProducts = new ArrayList<>();
+
     //存放未删除sku和被删除的sku对应关系的容器
     Map<SKU, List<SKU>> skuRelationMap = new HashMap<>();
 
@@ -58,6 +63,13 @@ public class SpuStockMigrationRunner2 extends BaseTest {
         //step 2: 查询SPU
         for (Integer spuId : spuIds) {
             Product product = productService.getProductById(spuId);
+            //存放老数据 减少db query次数
+            oldProducts.add(product);
+
+            //如果option为空 sku不存在直接跳过
+            if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
+                continue;
+            }
 
             //todo 如果option只有一个且是销售方式, 数据迁移后, 自动给SPU加一个规格叫"无规格", 规格值叫"无规格值"
             if (product.skuInfo.options.size() == 1 && product.skuInfo.options.get(0).label.equals("销售方式")) {
@@ -73,12 +85,20 @@ public class SpuStockMigrationRunner2 extends BaseTest {
                 values.add(value);
                 option.values = values;
                 product.skuInfo.options.add(option);
+                //给sku添加valueIds
+                product.skuInfo.skus.forEach(sku -> {
+                    int[] valueIds = sku.valueIds;
+                    List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
+                    collect.add(value.valueId);
+                    int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
+                    sku.valueIds = newValueIds;
+                });
             }
             //获取销售方式下标
             int saleOptionIndex = getSaleOptionIndex(product);
 
             //step 2.1 剔除Option中的销售方式
-            product.skuInfo.options.remove("销售方式");
+            product.skuInfo.options.remove(saleOptionIndex);
 
             //setp 2.2 剔除sku中valueId中对应的销售方式value
             removeSaleOptionSkuValueId(saleOptionIndex, product.skuInfo.skus);
@@ -96,13 +116,31 @@ public class SpuStockMigrationRunner2 extends BaseTest {
 
     //库存数据迁移
     private void migrationSpuStock() {
-        System.out.println("end!===========");
+        for (Map.Entry<SKU, List<SKU>> thisSkus : skuRelationMap.entrySet()) {
+            SKU masterSku = thisSkus.getKey();
+            List<SKU> followSkus = thisSkus.getValue();
+            SKUStockInfo oldSkuInfoMaster = getOldSkuInfoById(masterSku.id);
+            //update master
+            String sql1 = "update cataloginventory_stock_item set stock_name = ?, is_active = ? where product_id = ?";
+            Object[] params1 = new Object[] {oldSkuInfoMaster.saleOption, oldSkuInfoMaster.isdefaultStock ? 1 : 0, oldSkuInfoMaster.id};
+            sqlHelper.exec(sql1, params1);
+
+            //update follower
+            String sql2
+                = "update cataloginventory_stock_item set stock_name = ?, product_id = ?, is_active = ? where "
+                + "product_id = ?";
+            followSkus.forEach(sku -> {
+                SKUStockInfo oldSkuInfoFollower = getOldSkuInfoById(sku.id);
+                Object[] params2 = new Object[] {oldSkuInfoFollower.saleOption, masterSku.id, oldSkuInfoFollower.isdefaultStock ? 1 : 0, oldSkuInfoFollower.id};
+                sqlHelper.exec(sql2, params2);
+            });
+        }
     }
 
     //alter stock表
     private void alterStockTable() {
         sqlHelper.exec("alter table cataloginventory_stock_item add column stock_name varchar(200)");
-        sqlHelper.exec("alter table cataloginventory_stock_item add column is_active tinyint");
+        sqlHelper.exec("alter table cataloginventory_stock_item add column is_active tinyint default 0");
         sqlHelper.exec("alter table cataloginventory_stock_item add column is_deleted tinyint default 0");
     }
 
@@ -140,6 +178,7 @@ public class SpuStockMigrationRunner2 extends BaseTest {
                     }
                 }
             }
+
         });
     }
 
@@ -175,5 +214,58 @@ public class SpuStockMigrationRunner2 extends BaseTest {
     //判断两个int[]值是否相同
     private boolean isSame(int[] array1, int[] array2) {
         return Arrays.equals(array1, array2);
+    }
+
+    public SKUStockInfo getOldSkuInfoById(int skuId) {
+        SKUStockInfo skuStockInfo = new SKUStockInfo();
+        oldProducts.stream().forEach(spu -> {
+            spu.skuInfo.skus.forEach(sku -> {
+                if (sku.id == skuId) {
+                    int saleOptionIndex = getSaleOptionIndex(spu);
+                    int valueId = sku.valueIds[saleOptionIndex];
+                    spu.skuInfo.options.get(saleOptionIndex).values.forEach(value -> {
+                        if (value.valueId == valueId) {
+                            skuStockInfo.saleOption = value.label;
+                        }
+                    });
+                    skuStockInfo.id = sku.id;
+                    //计算是否是默认库存
+                    if (!sku.saleInfo.onSale) {
+                        skuStockInfo.isdefaultStock = false;
+                    } else {
+                        //查出所有上架sku,比较id,id最小的设置为默认库存
+                        List<SKU> onSaleSku = spu.skuInfo.skus.stream().filter(x -> x.saleInfo.onSale).collect(
+                            Collectors.toList());
+
+                        Collections.sort(onSaleSku, (x, y) -> {
+                            if (x.id > y.id) {
+                                return 1;
+                            } else {
+                                return -1;
+                            }
+                        });
+
+                        //根据id判断先后顺序
+                        if (onSaleSku.get(0).id == sku.id) {
+                            skuStockInfo.isdefaultStock = true;
+                        } else {
+                            skuStockInfo.isdefaultStock = false;
+                        }
+                    }
+                }
+            });
+        });
+
+        return skuStockInfo;
+    }
+
+    //template Class
+    class SKUStockInfo {
+
+        public int id;
+
+        public String saleOption;
+
+        public boolean isdefaultStock;
     }
 }
