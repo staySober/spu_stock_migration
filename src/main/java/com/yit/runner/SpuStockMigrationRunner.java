@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import com.alibaba.dubbo.common.utils.CollectionUtils;
 
 import com.yit.common.utils.SqlHelper;
+import com.yit.entity.ServiceException;
 import com.yit.product.api.ProductService;
 import com.yit.product.entity.Product;
 import com.yit.product.entity.Product.Option;
@@ -20,6 +21,8 @@ import com.yit.product.entity.ProductQueryType;
 import com.yit.product.entity.SpuComplete.CompleteStatus;
 import com.yit.product.entity.SpuInfoPageResult;
 import com.yit.test.BaseTest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -45,6 +48,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     //存放未删除sku和被删除的sku对应关系的容器
     Map<SKU, List<SKU>> skuRelationMap = new HashMap<>();
 
+    private static final Logger logger = LoggerFactory.getLogger(SpuStockMigrationRunner.class);
     @Override
     public void run() throws Exception {
         exec();
@@ -126,6 +130,19 @@ public class SpuStockMigrationRunner extends BaseTest {
         //step 4: 保存销售规格 库存
         alterStockTable();
         migrationSpuStock();
+
+        //step 5: 保存去除销售方式的Product
+        saveNewProduct();
+    }
+
+    private void saveNewProduct() {
+        newProducts.forEach(spu->{
+            try {
+                productService.updateProduct(spu,"系统",0);
+            } catch (ServiceException e) {
+                logger.error(e.toString(),String.format("系统错误,保存SPU: %s 时出错!",spu.id));
+            }
+        });
     }
 
     //库存数据迁移
@@ -252,6 +269,8 @@ public class SpuStockMigrationRunner extends BaseTest {
         oldProducts.stream().forEach(spu -> {
             spu.skuInfo.skus.forEach(sku -> {
                 if (sku.id == skuId) {
+                    boolean havaSaleOption;
+                    try{
                     int saleOptionIndex = getSaleOptionIndex(spu);
                     int valueId = sku.valueIds[saleOptionIndex];
                     spu.skuInfo.options.get(saleOptionIndex).values.forEach(value -> {
@@ -259,7 +278,17 @@ public class SpuStockMigrationRunner extends BaseTest {
                             skuStockInfo.saleOption = value.label;
                         }
                     });
+                    havaSaleOption = true;
+                    }catch (Exception e){
+                        havaSaleOption = false;
+                    }
                     skuStockInfo.id = sku.id;
+
+                    if (!havaSaleOption) {
+                        skuStockInfo.saleOption = "现货";
+                        skuStockInfo.isdefaultStock = true;
+                        return;
+                    }
                     //计算是否是默认库存
                     if (!sku.saleInfo.onSale) {
                         skuStockInfo.isdefaultStock = false;
