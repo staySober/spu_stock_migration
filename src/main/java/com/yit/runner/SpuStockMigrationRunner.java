@@ -56,12 +56,18 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     private void exec() {
         //step 1 :拿到所有SPU ID
-        SpuInfoPageResult spuInfoPageResult = productService.searchSpuInfo(ProductQueryType.ALL, null, null, null, null,
+        List<Integer> spuIdList =new ArrayList<>();
+        String sql = "select id from yitiao_product_spu where is_deleted = 0";
+        sqlHelper.exec(sql,(row)->{
+            spuIdList.add(row.getInt("id"));
+        });
+
+     /*   SpuInfoPageResult spuInfoPageResult = productService.searchSpuInfo(ProductQueryType.ALL, null, null, null, null,
             null, CompleteStatus.ALL, null, null);
         List<Integer> spuIds = spuInfoPageResult.rows.stream().map(x -> x.spuId).collect(Collectors.toList());
-
+*/
         //step 2: 查询SPU
-        for (Integer spuId : spuIds) {
+        for (Integer spuId : spuIdList) {
             Product product = productService.getProductById(spuId);
             //存放老数据 减少db query次数
             oldProducts.add(product);
@@ -71,9 +77,15 @@ public class SpuStockMigrationRunner extends BaseTest {
                 continue;
             }
 
+              //todo 如果option有多个并且没有销售方式
+            boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x->x.label.equals("销售方式"));
+            if (product.skuInfo.options.size() >= 1 && !haveSaleOption) {
+                newProducts.add(product);
+                continue;
+            }
+
             //todo 如果option只有一个且是销售方式, 数据迁移后, 自动给SPU加一个规格叫"无规格", 规格值叫"无规格值"
             if (product.skuInfo.options.size() == 1 && product.skuInfo.options.get(0).label.equals("销售方式")) {
-                product.skuInfo.options.remove(0);
                 Option option = new Option();
                 option.label = "无规格";
                 option.position = 0;
@@ -94,6 +106,8 @@ public class SpuStockMigrationRunner extends BaseTest {
                     sku.valueIds = newValueIds;
                 });
             }
+
+
             //获取销售方式下标
             int saleOptionIndex = getSaleOptionIndex(product);
 
@@ -116,15 +130,28 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     //库存数据迁移
     private void migrationSpuStock() {
+        //先把所有的sku刷一遍数据
+        for(Product product :newProducts) {
+            product.skuInfo.skus.forEach(sku -> {
+                SKUStockInfo skuStockInfo = getOldSkuInfoById(sku.id);
+                //update all
+                String sql = "update cataloginventory_stock_item set stock_name = ?, is_active = ? where product_id = ?";
+                Object[] params = new Object[] {skuStockInfo.saleOption, skuStockInfo.isdefaultStock ? 1 : 0, skuStockInfo.id};
+                sqlHelper.exec(sql,params);
+            });
+        }
+
+
+        //根据skuRelation订正sku库存数据
         for (Map.Entry<SKU, List<SKU>> thisSkus : skuRelationMap.entrySet()) {
             SKU masterSku = thisSkus.getKey();
             List<SKU> followSkus = thisSkus.getValue();
-            SKUStockInfo oldSkuInfoMaster = getOldSkuInfoById(masterSku.id);
+         /*   SKUStockInfo oldSkuInfoMaster = getOldSkuInfoById(masterSku.id);
             //update master
             String sql1 = "update cataloginventory_stock_item set stock_name = ?, is_active = ? where product_id = ?";
             Object[] params1 = new Object[] {oldSkuInfoMaster.saleOption, oldSkuInfoMaster.isdefaultStock ? 1 : 0, oldSkuInfoMaster.id};
             sqlHelper.exec(sql1, params1);
-
+        */
             //update follower
             String sql2
                 = "update cataloginventory_stock_item set stock_name = ?, product_id = ?, is_active = ? where "
@@ -161,6 +188,8 @@ public class SpuStockMigrationRunner extends BaseTest {
             List<SKU> skus = spu.skuInfo.skus;
             //按照skuId排序
             sortSku(skus);
+
+            outer:
             for (int index = skus.size() - 1; index >= 0; index--) {
                 for (int index2 = index - 1; index2 >= 0; index2--) {
                     //如果valueIds相同
@@ -170,11 +199,12 @@ public class SpuStockMigrationRunner extends BaseTest {
                             thisSkuValue.add(skus.get(index));
                             skuRelationMap.put(skus.get(index2), thisSkuValue);
                         } else {
-                            List<SKU> newSkus = new ArrayList<SKU>();
+                            List<SKU> newSkus = new ArrayList<>();
                             newSkus.add(skus.get(index));
                             skuRelationMap.put(skus.get(index2), newSkus);
                         }
                         skus.remove(index);
+                        break outer;
                     }
                 }
             }
@@ -216,6 +246,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         return Arrays.equals(array1, array2);
     }
 
+    //获取未删除销售规格前的sku的信息 用于迁移至stock
     public SKUStockInfo getOldSkuInfoById(int skuId) {
         SKUStockInfo skuStockInfo = new SKUStockInfo();
         oldProducts.stream().forEach(spu -> {
