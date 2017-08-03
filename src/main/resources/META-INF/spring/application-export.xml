@@ -27,8 +27,7 @@
     <bean id="keyValueService" class="com.yit.common.utils.keyvalue.KeyValueService" />
 
     <bean class="com.yit.runner.SpuStockMigrationRunner" init-method="start"/>
-
-    <bean id="queueService" class="com.yit.common.utils.queue.QueueService"/>
+    <bean class="com.yit.test.SqlHelperTest" init-method="start"/>
 
 
     <bean id="productService" class="com.alibaba.dubbo.config.spring.ReferenceBean">
@@ -37,14 +36,7 @@
         <property name="registry" ref="dubboRegistryConfig"/>
         <property name="check" value="false"/>
         <property name="version" value="${dubbo.reference.version}"/>
-    </bean>
-
-       <bean id="jobService" class="com.alibaba.dubbo.config.spring.ReferenceBean">
-        <property name="interface" value="com.yit.quartz.api.JobService"/>
-        <property name="application" ref="dubboApplicationConfig"/>
-        <property name="registry" ref="dubboRegistryConfig"/>
-        <property name="check" value="false"/>
-        <property name="version" value="${dubbo.reference.version}"/>
+        <property name="timeout" value="3000"/>
     </bean>
 
 
@@ -85,7 +77,7 @@
                 <property name="maxActive" value="60"/>
                 <property name="maxIdle" value="30"/>
                 <property name="minIdle" value="15"/>
-                <property name="defaultAutoCommit" value="false"/>
+                <property name="defaultAutoCommit" value="true"/>
                 <property name="maxWait" value="5000"/>
                 <property name="removeAbandoned" value="true"/>
                 <property name="removeAbandonedTimeout" value="60"/>

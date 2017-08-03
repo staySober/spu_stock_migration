@@ -404,7 +404,7 @@
         <dependency>
             <groupId>com.yit</groupId>
             <artifactId>common</artifactId>
-            <version>1.13.0-SNAPSHOT</version>
+            <version>1.13.0-SQLHELPER-SNAPSHOT</version>
         </dependency>
     </dependencies>
     

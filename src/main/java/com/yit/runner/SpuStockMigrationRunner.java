@@ -1,5 +1,6 @@
 package com.yit.runner;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -8,7 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.alibaba.dubbo.common.json.ParseException;
 import com.alibaba.dubbo.common.utils.CollectionUtils;
+import com.alibaba.fastjson.JSON;
 
 import com.yit.common.utils.SqlHelper;
 import com.yit.entity.ServiceException;
@@ -17,9 +20,6 @@ import com.yit.product.entity.Product;
 import com.yit.product.entity.Product.Option;
 import com.yit.product.entity.Product.Option.Value;
 import com.yit.product.entity.Product.SKU;
-import com.yit.product.entity.ProductQueryType;
-import com.yit.product.entity.SpuComplete.CompleteStatus;
-import com.yit.product.entity.SpuInfoPageResult;
 import com.yit.test.BaseTest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +42,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     //存放去除销售方式后product的容器
     List<Product> newProducts = new ArrayList<>();
 
-    //存放去除销售方式后product的容器
+    //存放去除销售方式前product的容器
     List<Product> oldProducts = new ArrayList<>();
 
     //存放未删除sku和被删除的sku对应关系的容器
@@ -58,7 +58,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         runTest(SpuStockMigrationRunner.class);
     }
 
-    private void exec() {
+    private void exec() throws IOException, ParseException {
         //step 1 :拿到所有SPU ID
         List<Integer> spuIdList =new ArrayList<>();
         String sql = "select id from yitiao_product_spu where is_deleted = 0";
@@ -74,9 +74,12 @@ public class SpuStockMigrationRunner extends BaseTest {
         for (Integer spuId : spuIdList) {
             Product product = productService.getProductById(spuId);
             //存放老数据 减少db query次数
-            oldProducts.add(product);
+            String json = JSON.toJSONString(product);
+            Product productCopy = JSON.parseObject(json, Product.class);
+            oldProducts.add(productCopy);
 
             //如果option为空 sku不存在直接跳过
+            logger.info(String.format("READ ACTION 当前SPU ID : %s ",spuId));
             if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
                 continue;
             }
@@ -128,17 +131,19 @@ public class SpuStockMigrationRunner extends BaseTest {
         removeDuplicateValueIdsSku();
 
         //step 4: 保存销售规格 库存
-        alterStockTable();
+        addStockTable();
         migrationSpuStock();
 
         //step 5: 保存去除销售方式的Product
         saveNewProduct();
+        System.out.println("SUCCESS !");
     }
 
     private void saveNewProduct() {
         newProducts.forEach(spu->{
             try {
                 productService.updateProduct(spu,"系统",0);
+                logger.info(String.format("SAVE ACTION 当前SPU ID : %s ",spu.id));
             } catch (ServiceException e) {
                 logger.error(e.toString(),String.format("系统错误,保存SPU: %s 时出错!",spu.id));
             }
@@ -152,7 +157,7 @@ public class SpuStockMigrationRunner extends BaseTest {
             product.skuInfo.skus.forEach(sku -> {
                 SKUStockInfo skuStockInfo = getOldSkuInfoById(sku.id);
                 //update all
-                String sql = "update cataloginventory_stock_item set stock_name = ?, is_active = ? where product_id = ?";
+                String sql = "update yitiao_product_sku_stock set stock_name = ?, is_active = ? where sku_id = ?";
                 Object[] params = new Object[] {skuStockInfo.saleOption, skuStockInfo.isdefaultStock ? 1 : 0, skuStockInfo.id};
                 sqlHelper.exec(sql,params);
             });
@@ -171,21 +176,33 @@ public class SpuStockMigrationRunner extends BaseTest {
         */
             //update follower
             String sql2
-                = "update cataloginventory_stock_item set stock_name = ?, product_id = ?, is_active = ? where "
-                + "product_id = ?";
+                = "update yitiao_product_sku_stock set sku_id = ? where "
+                + "sku_id = ?";
             followSkus.forEach(sku -> {
                 SKUStockInfo oldSkuInfoFollower = getOldSkuInfoById(sku.id);
-                Object[] params2 = new Object[] {oldSkuInfoFollower.saleOption, masterSku.id, oldSkuInfoFollower.isdefaultStock ? 1 : 0, oldSkuInfoFollower.id};
+                Object[] params2 = new Object[] { masterSku.id, oldSkuInfoFollower.id};
                 sqlHelper.exec(sql2, params2);
             });
         }
     }
 
     //alter stock表
-    private void alterStockTable() {
-        sqlHelper.exec("alter table cataloginventory_stock_item add column stock_name varchar(200)");
-        sqlHelper.exec("alter table cataloginventory_stock_item add column is_active tinyint default 0");
-        sqlHelper.exec("alter table cataloginventory_stock_item add column is_deleted tinyint default 0");
+    private void addStockTable() {
+        sqlHelper.exec("create table yitiao_product_sku_stock (\n"
+            + "    id int NOT NULL auto_increment,\n"
+            + "    name varchar(200),\n"
+            + "    sku_id int,\n"
+            + "    quantity int,\n"
+            + "    notify_quantity int,\n"
+            + "    status tinyint,\n"
+            + "    is_active tinyint,\n"
+            + "    is_deleted tinyint,\n"
+            + "    PRIMARY KEY (id),\n"
+            + "    KEY IDX_SKU_ID_AND_IS_ACTIVE (sku_id,is_active)\n"
+            + ")ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8 COMMENT='sku stock table';\n");
+
+        sqlHelper.exec("insert into yitiao_product_sku_stock(sku_id,quantity,notify_quantity,status,is_active,is_deleted) select product_id,qty,notify_stock_qty,status,0,0 from cataloginventory_stock_item");
+
     }
 
     //去掉sku中valueId对应的销售方式optionId
@@ -269,26 +286,27 @@ public class SpuStockMigrationRunner extends BaseTest {
         oldProducts.stream().forEach(spu -> {
             spu.skuInfo.skus.forEach(sku -> {
                 if (sku.id == skuId) {
-                    boolean havaSaleOption;
-                    try{
-                    int saleOptionIndex = getSaleOptionIndex(spu);
-                    int valueId = sku.valueIds[saleOptionIndex];
-                    spu.skuInfo.options.get(saleOptionIndex).values.forEach(value -> {
-                        if (value.valueId == valueId) {
-                            skuStockInfo.saleOption = value.label;
-                        }
-                    });
-                    havaSaleOption = true;
-                    }catch (Exception e){
-                        havaSaleOption = false;
+                    boolean haveSaleOption;
+                    try {
+                        int saleOptionIndex = getSaleOptionIndex(spu);
+                        int valueId = sku.valueIds[saleOptionIndex];
+                        spu.skuInfo.options.get(saleOptionIndex).values.forEach(value -> {
+                            if (value.id == valueId) {
+                                skuStockInfo.saleOption = value.label;
+                            }
+                        });
+                        haveSaleOption = true;
+                    } catch (Exception e) {
+                        haveSaleOption = false;
                     }
                     skuStockInfo.id = sku.id;
 
-                    if (!havaSaleOption) {
+                    if (!haveSaleOption) {
                         skuStockInfo.saleOption = "现货";
                         skuStockInfo.isdefaultStock = true;
                         return;
                     }
+
                     //计算是否是默认库存
                     if (!sku.saleInfo.onSale) {
                         skuStockInfo.isdefaultStock = false;
@@ -320,7 +338,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     //template Class
-    class SKUStockInfo {
+    public class SKUStockInfo {
 
         public int id;
 
