@@ -1,3 +1,4 @@
+/*
 package com.yit.runner;
 
 import java.io.File;
@@ -12,6 +13,7 @@ import java.util.stream.Collectors;
 
 import com.alibaba.dubbo.common.json.ParseException;
 import com.alibaba.dubbo.common.utils.CollectionUtils;
+import com.alibaba.dubbo.common.utils.StringUtils;
 import com.alibaba.fastjson.JSON;
 
 import com.yit.common.utils.SqlHelper;
@@ -27,12 +29,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+*/
 /**
  * Created by sober on 2017/7/28.
  *
  * @author sober
  * @date 2017/07/28
- */
+ *//*
+
 public class SpuStockMigrationRunner extends BaseTest {
 
     private static final Logger logger = LoggerFactory.getLogger(SpuStockMigrationRunner.class);
@@ -66,7 +70,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         StopWatchUtils.start("获取全部的SPU ID");
         //step 1 :拿到所有SPU ID
         List<Integer> spuIdList = new ArrayList<>();
-        String sql = "select id from yitiao_product_spu where is_deleted = 0";
+        String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
         sqlHelper.exec(sql, (row) -> {
             spuIdList.add(row.getInt("id"));
         });
@@ -75,10 +79,40 @@ public class SpuStockMigrationRunner extends BaseTest {
 
         //mock List
         List<Integer> mockList = new ArrayList<>();
-        mockList.add(552);
+        mockList.add(26);
+
+        //init
+        addStockTable();
 
         StopWatchUtils.start("拉取所有SKU并去除销售方式,删除相同valueIds的SKU并存储对应关系");
         //step 2: 查询SPU
+        loadSPU(mockList);
+
+        //step 3: 查询重复的valueIds 留创建最早的sku 干掉其他sku
+        removeDuplicateValueIdsSku();
+
+        StopWatchUtils.stop();
+        logger.info(StopWatchUtils.prettyPrint());
+
+        StopWatchUtils.start("创建stock表并迁移数据");
+        //step 4: 保存销售规格 库存
+        migrationSpuStock();
+
+        StopWatchUtils.stop();
+        logger.info(StopWatchUtils.prettyPrint());
+
+        StopWatchUtils.start("保存迁移后的Product对象");
+        //step 5: 保存去除销售方式的Product
+        saveNewProduct();
+
+        StopWatchUtils.stop();
+        logger.info(StopWatchUtils.prettyPrint());
+        StopWatchUtils.removeStopWatch();
+
+        System.out.println("Execute Success!");
+    }
+
+    private void loadSPU(List<Integer> mockList) {
         for (Integer spuId : mockList) {
             Product product = productService.getProductById(spuId);
             //存放老数据 减少db query次数
@@ -131,29 +165,6 @@ public class SpuStockMigrationRunner extends BaseTest {
 
             newProducts.add(product);
         }
-
-        //step 3: 查询重复的valueIds 留创建最早的sku 干掉其他sku
-        removeDuplicateValueIdsSku();
-
-        StopWatchUtils.stop();
-        logger.info(StopWatchUtils.prettyPrint());
-
-        StopWatchUtils.start("创建stock表并迁移数据");
-        //step 4: 保存销售规格 库存
-        addStockTable();
-        migrationSpuStock();
-
-        StopWatchUtils.stop();
-        logger.info(StopWatchUtils.prettyPrint());
-
-        StopWatchUtils.start("保存迁移后的Product对象");
-        //step 5: 保存去除销售方式的Product
-        saveNewProduct();
-
-        StopWatchUtils.stop();
-        logger.info(StopWatchUtils.prettyPrint());
-        StopWatchUtils.removeStopWatch();
-        System.out.println("SUCCESS !");
     }
 
     //保存Product
@@ -172,9 +183,9 @@ public class SpuStockMigrationRunner extends BaseTest {
     private void migrationSpuStock() {
         //先把所有的sku刷一遍数据
         String sqlStock = "update yitiao_product_sku_stock set name = ?, is_active = ? where sku_id = ?";
-        String sqlHistory = "update yitiao_product_sku_stock_history set name = ? where sku_id = ?";
+        String sqlHistory = "update yitiao_product_sku_stock_history set stock_id = ? where sku_id = ?";
 
-        for (Product product : newProducts) {
+        for (Product product : oldProducts) {
             product.skuInfo.skus.forEach(sku -> {
                 SKUStockInfo skuStockInfo = getOldSkuInfoById(sku.id);
                 //update all 库存表
@@ -182,8 +193,9 @@ public class SpuStockMigrationRunner extends BaseTest {
                     skuStockInfo.id};
                 sqlHelper.exec(sqlStock, params);
 
+                int stockId = getStockIdByCondition(sku.id, skuStockInfo.saleOption);
                 //库存历史表
-                Object[] params2 = new Object[] {skuStockInfo.saleOption, skuStockInfo.id};
+                Object[] params2 = new Object[] {stockId, skuStockInfo.id};
                 sqlHelper.exec(sqlHistory, params2);
             });
         }
@@ -211,9 +223,10 @@ public class SpuStockMigrationRunner extends BaseTest {
     private void addStockTable() throws IOException {
         String sqls = ReadUtils.read(new File("sqlSource/run.sql"));
         for (String sql : sqls.split(";")) {
-            sqlHelper.exec(sql);
+            if (!StringUtils.isBlank(sql)) {
+                sqlHelper.exec(sql);
+            }
         }
-
     }
 
     //去掉sku中valueId对应的销售方式optionId
@@ -349,6 +362,12 @@ public class SpuStockMigrationRunner extends BaseTest {
         return skuStockInfo;
     }
 
+    public int getStockIdByCondition(int skuId,String stockName) {
+        Object[] params = new Object[]{skuId,stockName};
+        return sqlHelper
+                .execInt("select id from yitiao_product_sku_stock where sku_id = ? and name = ?", params);
+    }
+
     //template Class
     public class SKUStockInfo {
 
@@ -359,3 +378,4 @@ public class SpuStockMigrationRunner extends BaseTest {
         public boolean isdefaultStock;
     }
 }
+*/
