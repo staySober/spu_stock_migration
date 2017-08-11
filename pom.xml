@@ -87,12 +87,6 @@
             <version>1.38.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>com.yit</groupId>
-            <artifactId>demoproject-api</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.javassist</groupId>
             <artifactId>javassist</artifactId>
             <version>3.20.0-GA</version>
@@ -404,7 +398,7 @@
         <dependency>
             <groupId>com.yit</groupId>
             <artifactId>common</artifactId>
-            <version>1.13.0-SQLHELPER-SNAPSHOT</version>
+            <version>1.13.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
     
