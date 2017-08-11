@@ -243,7 +243,6 @@ public class SpuStockMigrationRunner2 extends BaseTest {
             }
         }
     }
-
     //获取销售方式所对应的index
     private int getSaleOptionIndex(Product product) {
         //销售方式 option 在集合中的下标
@@ -261,7 +260,6 @@ public class SpuStockMigrationRunner2 extends BaseTest {
         }
         return saleOptionIndex;
     }
-
     //去掉sku中valueId对应的销售方式optionId
     private void removeSaleOptionSkuValueId(int saleOptionIndex, List<SKU> thisSkus) {
         for (int index = 0; index < thisSkus.size(); index++) {
@@ -272,18 +270,10 @@ public class SpuStockMigrationRunner2 extends BaseTest {
             thisSkus.get(index).valueIds = newValueIds;
         }
     }
-
     //判断两个int[]值是否相同
     private boolean isSame(int[] array1, int[] array2) {
         return Arrays.equals(array1, array2);
     }
-
-    public int getStockIdByCondition(int skuId) {
-        Object[] params = new Object[] {skuId};
-        return sqlHelper
-            .execInt("select id from yitiao_product_sku_stock where sku_id = ?", params);
-    }
-
     //计算是否是默认库存
     public boolean computeDefaultStock(int skuId) {
         final boolean[] isdefaultStock = new boolean[1];
@@ -318,12 +308,4 @@ public class SpuStockMigrationRunner2 extends BaseTest {
         return isdefaultStock[0];
     }
 
-    class SKUStockInfo {
-
-        public int id;
-
-        public String saleOption;
-
-        public boolean isdefaultStock;
-    }
 }
