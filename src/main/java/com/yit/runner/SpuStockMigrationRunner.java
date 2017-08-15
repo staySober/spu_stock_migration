@@ -122,6 +122,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         //clear map
         skuRelationMap.clear();
     }
+
     //todo remove params
     private void migrationSpuStock(Product product) {
         //刷sku库存名称 默认库存
@@ -243,6 +244,7 @@ public class SpuStockMigrationRunner extends BaseTest {
             }
         }
     }
+
     //获取销售方式所对应的index
     private int getSaleOptionIndex(Product product) {
         //销售方式 option 在集合中的下标
@@ -260,6 +262,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
         return saleOptionIndex;
     }
+
     //去掉sku中valueId对应的销售方式optionId
     private void removeSaleOptionSkuValueId(int saleOptionIndex, List<SKU> thisSkus) {
         for (int index = 0; index < thisSkus.size(); index++) {
@@ -270,10 +273,12 @@ public class SpuStockMigrationRunner extends BaseTest {
             thisSkus.get(index).valueIds = newValueIds;
         }
     }
+
     //判断两个int[]值是否相同
     private boolean isSame(int[] array1, int[] array2) {
         return Arrays.equals(array1, array2);
     }
+
     //计算是否是默认库存
     public boolean computeDefaultStock(int skuId) {
         final boolean[] isdefaultStock = new boolean[1];
