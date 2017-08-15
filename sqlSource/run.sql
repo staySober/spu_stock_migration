@@ -40,6 +40,7 @@ notify_quantity is null;
 create table yitiao_product_sku_stock_history (
                 id int NOT NULL auto_increment,
                 stock_id int,
+                sku_id int,
                 operation_time datetime DEFAULT CURRENT_TIMESTAMP,
                 ajust_amount int,
                 current_amount int,
@@ -55,6 +56,7 @@ create table yitiao_product_sku_stock_history (
 insert into yitiao_product_sku_stock_history
 (
     id,
+    stock_id,
     operation_time,
     ajust_amount,
     current_amount,
@@ -65,6 +67,7 @@ insert into yitiao_product_sku_stock_history
 )
  select
     id,
+    product_id,
     operation_time,
     ajust_amount,
     current_amount,
@@ -84,3 +87,5 @@ set
     where
         history.sku_id = stock.sku_id
     );
+
+alter table yitiao_product_sku_stock_history drop column  sku_id;
