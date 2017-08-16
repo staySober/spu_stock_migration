@@ -123,34 +123,27 @@ public class SpuStockMigrationRunner extends BaseTest {
         skuRelationMap.clear();
     }
 
-    //todo remove params
     private void migrationSpuStock(Product product) {
         //刷sku库存名称 默认库存
         String sqlStockName = "update yitiao_product_sku_stock set name = ? ,is_active = ? where sku_id = ? ";
+        //订正多库存关系
+        String sqlStock = "update yitiao_product_sku_stock set sku_id = ? where sku_id = ?";
+
         for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
             SKU masterSku = entry.getKey();
             List<SKU> followSku = entry.getValue();
             boolean defaultStock = computeDefaultStock(masterSku.id);
+            //master
             sqlHelper.exec(sqlStockName, new Object[] {"现货", defaultStock ? 1 : 0, masterSku.id});
+            //follower
             for (SKU sku : followSku) {
                 String stockName = getStockName(sku.id);
                 boolean defaultStockFollow = computeDefaultStock(sku.id);
                 sqlHelper.exec(sqlStockName, new Object[] {stockName, defaultStockFollow ? 1 : 0, sku.id});
-            }
-        }
 
-
-        //订正多库存关系
-        String sqlStock2 = "update yitiao_product_sku_stock set sku_id = ? where sku_id = ?";
-        //根据skuRelation订正sku库存数据
-        for (Map.Entry<SKU, List<SKU>> thisSkus : skuRelationMap.entrySet()) {
-            SKU masterSku = thisSkus.getKey();
-            List<SKU> followSkus = thisSkus.getValue();
-            //update follower
-            followSkus.forEach(sku -> {
                 Object[] params2 = new Object[] {masterSku.id, sku.id};
-                sqlHelper.exec(sqlStock2, params2);
-            });
+                sqlHelper.exec(sqlStock, params2);
+            }
         }
 
     }
