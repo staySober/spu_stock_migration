@@ -142,7 +142,6 @@ public class SpuStockMigrationRunner extends BaseTest {
 
         //订正多库存关系
         String sqlStock2 = "update yitiao_product_sku_stock set sku_id = ? where sku_id = ?";
-        String sqlHistory2 = "update yitiao_product_sku_stock_history set sku_id = ? where sku_id = ?";
         //根据skuRelation订正sku库存数据
         for (Map.Entry<SKU, List<SKU>> thisSkus : skuRelationMap.entrySet()) {
             SKU masterSku = thisSkus.getKey();
@@ -151,13 +150,9 @@ public class SpuStockMigrationRunner extends BaseTest {
             followSkus.forEach(sku -> {
                 Object[] params2 = new Object[] {masterSku.id, sku.id};
                 sqlHelper.exec(sqlStock2, params2);
-                sqlHelper.exec(sqlHistory2, params2);
             });
         }
 
-        //最后 删除stock_history sku_id字段
-        String dropSql = "alter table yitiao_product_sku_stock_history drop column sku_id";
-        sqlHelper.exec(dropSql);
     }
 
     private String getStockName(int id) {

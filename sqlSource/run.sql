@@ -56,7 +56,7 @@ create table yitiao_product_sku_stock_history (
 insert into yitiao_product_sku_stock_history
 (
     id,
-    stock_id,
+    sku_id,
     operation_time,
     adjust_amount,
     current_amount,
@@ -88,4 +88,4 @@ set
         history.sku_id = stock.sku_id
     );
 
-alter table yitiao_product_sku_stock_history drop column  sku_id;
+alter table yitiao_product_sku_stock_history drop column sku_id;
