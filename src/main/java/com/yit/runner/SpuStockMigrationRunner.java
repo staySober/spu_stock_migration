@@ -28,10 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * Created by sober on 2017/8/9.
- *
- * @author sober
- * @date 2017/08/09
+ * 去销售方式  +  库存迁移
  */
 public class SpuStockMigrationRunner extends BaseTest {
 
@@ -62,22 +59,20 @@ public class SpuStockMigrationRunner extends BaseTest {
         sqlHelper.exec(sql, (row) -> {
             spuIdList.add(row.getInt("id"));
         });
-
-      /*  List<Integer> mock = new ArrayList<>();
-        mock.add(27);
-        mock.add(552);
-        mock.add(480);*/
-        //循环获取SPU
+      /*  List<Integer> mocklist = new ArrayList<>();
+        mocklist.add(45);*/
+        //循环去销售方式 修改库存结构
         for (Integer spuId : spuIdList) {
-            //存放老数据 减少db query次数
+            //get product
             Product product = productService.getProductById(spuId);
             oldProduct = JSON.parseObject(JSON.toJSONString(product), Product.class);
 
-            //去销售规格
-            if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {continue;}
+            boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
 
-            boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x -> x.label.equals("销售方式"));
-            //step:1 只有一个规格并且为销售方式
+            if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
+                continue;
+            }
+            //坑 这个地方注意if语句的顺序
             if (product.skuInfo.options.size() == 1 && haveSaleOption) {
                 //构造无规格
                 Option option = makeUpNoOption();
@@ -93,11 +88,11 @@ public class SpuStockMigrationRunner extends BaseTest {
                 removeSaleOption(product);
             }
 
-            //step:2 有多个规格并且有销售方式
             if (product.skuInfo.options.size() > 1 && haveSaleOption) {
                 removeSaleOption(product);
             }
-            //去重复SKU 记录增删的关系
+
+            //去重复SKU 记录多库存关系
             removeDuplicateValueIdSku(product);
 
             //执行SQL,迁移stock,stockHistory
@@ -106,6 +101,7 @@ public class SpuStockMigrationRunner extends BaseTest {
             //Save Product
             saveNewProduct(product);
         }
+
     }
 
     public static void main(String[] args) {
@@ -224,7 +220,6 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     private void prepareAction() throws IOException {
-
         String sqls = ReadUtils.read(new File("sqlSource/run.sql"));
         for (String sql : sqls.split(";")) {
             if (!StringUtils.isBlank(sql)) {
