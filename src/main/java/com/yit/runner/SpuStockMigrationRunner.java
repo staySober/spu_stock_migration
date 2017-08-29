@@ -52,7 +52,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     @Override
     public void run() throws Exception {
         //prepare action
-        //prepareAction();
+        prepareAction();
 
         //获取所有SPU ID
         String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
@@ -106,6 +106,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
 
     }
+
     public static void main(String[] args) {
         runTest(SpuStockMigrationRunner.class);
     }
@@ -113,7 +114,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     private void saveNewProduct(Product product) {
         try {
             productService.updateProduct(product, "系统", 0);
-            logger.info(String.format("Sava-Product Action.  ID: %s ", product.id));
+            logger.info(String.format("Save-Product Action.  ID: %s ", product.id));
         } catch (ServiceException e) {
             logger.error(e.toString(), String.format("系统错误,保存Product ID: %s 时出错!", product.id));
         }

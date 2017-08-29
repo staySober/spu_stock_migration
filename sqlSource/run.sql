@@ -23,14 +23,15 @@ insert into yitiao_product_sku_stock
     is_replenishing,
     is_active,
     is_deleted)
-select product_id,
-    '现货',
-    qty,
-    notify_stock_qty,
-    status,
-    1,
-    1,
-    0
+select
+      product_id,
+      '现货',
+      qty,
+      notify_stock_qty,
+      1,
+      status,
+      1,
+      0
 from cataloginventory_stock_item;
 
 
