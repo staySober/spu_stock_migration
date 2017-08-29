@@ -35,7 +35,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     private static final Logger logger = LoggerFactory.getLogger(SpuStockMigrationRunner.class);
 
     //存放原始product的容器
-    Product oldProduct = null;
+    Product oldProduct;
 
     //存放未删除sku和被删除的sku对应关系的容器
     Map<SKU, List<SKU>> skuRelationMap = new HashMap<>();
@@ -52,7 +52,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     @Override
     public void run() throws Exception {
         //prepare action
-        prepareAction();
+        //prepareAction();
 
         //获取所有SPU ID
         String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
@@ -96,14 +96,16 @@ public class SpuStockMigrationRunner extends BaseTest {
             removeDuplicateValueIdSku(product);
 
             //执行SQL,迁移stock,stockHistory
-            migrationSpuStock(product);
+            migrationSpuStock();
 
             //Save Product
             saveNewProduct(product);
+
+            //更新库存优先级
+            updateStockPriority();
         }
 
     }
-
     public static void main(String[] args) {
         runTest(SpuStockMigrationRunner.class);
     }
@@ -119,7 +121,26 @@ public class SpuStockMigrationRunner extends BaseTest {
         skuRelationMap.clear();
     }
 
-    private void migrationSpuStock(Product product) {
+    private void updateStockPriority() {
+        String sql = "select id from yitiao_product_sku_stock where  sku_id = ? and is_deleted = 0 order by id asc";
+        for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
+            List<Integer> idList = new ArrayList<>();
+
+            SKU thisMasterSku = entry.getKey();
+            sqlHelper.exec(sql,new Object[]{thisMasterSku.id},(row)->{
+                idList.add(row.getInt("id"));
+            });
+
+            for (int i = 0; i < idList.size(); i++) {
+                String sql2 = "update yitiao_product_sku_stock set priority = ? where id = ? ";
+                sqlHelper.exec(sql2,new Object[]{i+1,idList.get(i)});
+            }
+        }
+
+    }
+
+    private void migrationSpuStock() {
+
         //刷sku库存名称 默认库存
         String sqlStockName = "update yitiao_product_sku_stock set name = ? ,is_active = ? where sku_id = ? ";
         //订正多库存关系
@@ -143,6 +164,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
 
     }
+
 
     private String getStockName(int id) {
         final String[] stockName = new String[1];

@@ -4,6 +4,7 @@ create table yitiao_product_sku_stock (
                 sku_id int,
                 quantity int,
                 notify_quantity int,
+                priority int,
                 is_replenishing tinyint,
                 is_active tinyint,
                 is_deleted tinyint,
@@ -18,6 +19,7 @@ insert into yitiao_product_sku_stock
     name,
     quantity,
     notify_quantity,
+    priority,
     is_replenishing,
     is_active,
     is_deleted)
@@ -26,6 +28,7 @@ select product_id,
     qty,
     notify_stock_qty,
     status,
+    1,
     1,
     0
 from cataloginventory_stock_item;
