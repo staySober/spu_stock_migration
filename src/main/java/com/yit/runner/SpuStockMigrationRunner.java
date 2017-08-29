@@ -52,17 +52,17 @@ public class SpuStockMigrationRunner extends BaseTest {
     @Override
     public void run() throws Exception {
         //prepare action
-        prepareAction();
+        //prepareAction();
 
         //获取所有SPU ID
         String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
         sqlHelper.exec(sql, (row) -> {
             spuIdList.add(row.getInt("id"));
         });
-      /*  List<Integer> mocklist = new ArrayList<>();
-        mocklist.add(45);*/
+        List<Integer> mocklist = new ArrayList<>();
+        mocklist.add(16651);
         //循环去销售方式 修改库存结构
-        for (Integer spuId : spuIdList) {
+        for (Integer spuId : mocklist) {
             //get product
             Product product = productService.getProductById(spuId);
             oldProduct = JSON.parseObject(JSON.toJSONString(product), Product.class);
@@ -98,11 +98,11 @@ public class SpuStockMigrationRunner extends BaseTest {
             //执行SQL,迁移stock,stockHistory
             migrationSpuStock();
 
-            //Save Product
-            saveNewProduct(product);
-
             //更新库存优先级
             updateStockPriority();
+
+            //Save Product
+            saveNewProduct(product);
         }
 
     }
@@ -128,13 +128,13 @@ public class SpuStockMigrationRunner extends BaseTest {
             List<Integer> idList = new ArrayList<>();
 
             SKU thisMasterSku = entry.getKey();
-            sqlHelper.exec(sql,new Object[]{thisMasterSku.id},(row)->{
+            sqlHelper.exec(sql, new Object[] {thisMasterSku.id}, (row) -> {
                 idList.add(row.getInt("id"));
             });
 
             for (int i = 0; i < idList.size(); i++) {
                 String sql2 = "update yitiao_product_sku_stock set priority = ? where id = ? ";
-                sqlHelper.exec(sql2,new Object[]{i+1,idList.get(i)});
+                sqlHelper.exec(sql2, new Object[] {i + 1, idList.get(i)});
             }
         }
 
@@ -165,7 +165,6 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
 
     }
-
 
     private String getStockName(int id) {
         final String[] stockName = new String[1];
