@@ -51,18 +51,19 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     @Override
     public void run() throws Exception {
+        print("procedure init------------->");
         //prepare action
-        //prepareAction();
+        prepareAction();
 
         //获取所有SPU ID
         String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
         sqlHelper.exec(sql, (row) -> {
             spuIdList.add(row.getInt("id"));
         });
-        List<Integer> mocklist = new ArrayList<>();
-        mocklist.add(16651);
+       /* List<Integer> mocklist = new ArrayList<>();
+        mocklist.add(16651);*/
         //循环去销售方式 修改库存结构
-        for (Integer spuId : mocklist) {
+        for (Integer spuId : spuIdList) {
             //get product
             Product product = productService.getProductById(spuId);
             oldProduct = JSON.parseObject(JSON.toJSONString(product), Product.class);
@@ -105,6 +106,16 @@ public class SpuStockMigrationRunner extends BaseTest {
             saveNewProduct(product);
         }
 
+        //end scope
+        endProcessed();
+        print("procedure successed finish!");
+
+    }
+
+    private void endProcessed() throws Exception {
+        String sql = ReadUtils.read(new File("sqlSource/endProcess.sql"));
+        sqlHelper.exec(sql);
+        //todo reload all spu
     }
 
     public static void main(String[] args) {

@@ -12,10 +12,10 @@ public class StopWatchTest {
 
     private static final Logger logger = Logger.getLogger(StopWatchTest.class);
 
-    public static void main(String[] args) {
+ /*   public static void main(String[] args) {
         TestDemo();
     }
-
+*/
 
      public static void TestDemo(){
         StopWatchUtils.start("task1");
