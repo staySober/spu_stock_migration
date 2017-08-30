@@ -1,7 +1,9 @@
 package com.yit.runner;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,7 +34,11 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public class SpuStockMigrationRunner extends BaseTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(SpuStockMigrationRunner.class);
+    @Autowired
+    ProductService productService;
+
+    @Autowired
+    SqlHelper sqlHelper;
 
     //存放原始product的容器
     Product oldProduct;
@@ -43,25 +49,10 @@ public class SpuStockMigrationRunner extends BaseTest {
     //SPU ID
     List<Integer> spuIdList = new ArrayList<>();
 
-    @Autowired
-    ProductService productService;
-
-    @Autowired
-    SqlHelper sqlHelper;
-
     @Override
     public void run() throws Exception {
-        print("procedure init------------->");
-        //prepare action
-        prepareAction();
+        init();
 
-        //获取所有SPU ID
-        String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
-        sqlHelper.exec(sql, (row) -> {
-            spuIdList.add(row.getInt("id"));
-        });
-       /* List<Integer> mocklist = new ArrayList<>();
-        mocklist.add(16651);*/
         //循环去销售方式 修改库存结构
         for (Integer spuId : spuIdList) {
             //get product
@@ -70,6 +61,7 @@ public class SpuStockMigrationRunner extends BaseTest {
 
             boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
 
+            //case Spu empty
             if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
                 continue;
             }
@@ -89,6 +81,7 @@ public class SpuStockMigrationRunner extends BaseTest {
                 removeSaleOption(product);
             }
 
+            //spu有多个规格并且有销售方式
             if (product.skuInfo.options.size() > 1 && haveSaleOption) {
                 removeSaleOption(product);
             }
@@ -104,18 +97,72 @@ public class SpuStockMigrationRunner extends BaseTest {
 
             //Save Product
             saveNewProduct(product);
+
+            //记录point
+            recordPointToText(spuId);
         }
 
         //end scope
         endProcessed();
-        print("procedure successed finish!");
 
     }
 
+    //记录执行的point的偏移
+    private void recordPointToText(Integer spuId) throws IOException {
+        File file = new File("sqlSource/pointRecord.txt");
+        OutputStream os = new FileOutputStream(file);
+        os.write(String.valueOf(spuId).getBytes());
+        os.close();
+    }
+
+    //迁移初始化
+    private void init() throws IOException {
+        File file = new File("sqlSource/pointRecord.txt");
+        Integer pointRecord;
+        if (file.exists()) {
+            //read point
+            pointRecord = Integer.parseInt(ReadUtils.read(file));
+        } else {
+            OutputStream os = new FileOutputStream(file);
+            os.write("".getBytes());
+            os.close();
+
+            //prepare action
+            prepareAction();
+            pointRecord = 0;
+        }
+        //获取所有SPU ID
+        String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
+
+        sqlHelper.exec(sql, (row) -> {
+            spuIdList.add(row.getInt("id"));
+        });
+        //从上一次的断点继续执行
+        if (pointRecord != 0) {
+            int indexPoint = spuIdList.indexOf(pointRecord);
+            spuIdList = spuIdList.subList(indexPoint + 1 ,spuIdList.size());
+            print("Continue from the last operation is carried out. Last SpuId : ---> {"+pointRecord+"}");
+        }
+    }
+
+    //迁移结束收尾工作
     private void endProcessed() throws Exception {
+        List<Integer> spuIdList = new ArrayList<>();
         String sql = ReadUtils.read(new File("sqlSource/endProcess.sql"));
         sqlHelper.exec(sql);
         //todo reload all spu
+        String reloadSpu = "select id from yitiao_product_spu where is_deleted = 0";
+        sqlHelper.exec(reloadSpu,(row)->{
+            int id = row.getInt("id");
+            spuIdList.add(id);
+        });
+
+        for (Integer spuId : spuIdList) {
+            Product product = new Product();
+            product.id = spuId;
+            productService.updateProduct(product,"系统",0);
+        }
+
     }
 
     public static void main(String[] args) {
@@ -125,9 +172,9 @@ public class SpuStockMigrationRunner extends BaseTest {
     private void saveNewProduct(Product product) {
         try {
             productService.updateProduct(product, "系统", 0);
-            logger.info(String.format("Save-Product Action.  ID: %s ", product.id));
+            print(String.format("Save-Product Action.  ID: %s  succeed", product.id));
         } catch (ServiceException e) {
-            logger.error(e.toString(), String.format("系统错误,保存Product ID: %s 时出错!", product.id));
+            print(e.toString(), String.format("系统错误,保存Product ID: %s 时出错!", product.id));
         }
         //clear map
         skuRelationMap.clear();
@@ -210,7 +257,7 @@ public class SpuStockMigrationRunner extends BaseTest {
             inner:
             for (int index2 = index - 1; index2 >= 0; index2--) {
                 //如果valueIds相同
-                if (isSame(skus.get(index).valueIds, skus.get(index2).valueIds)) {
+                if (isSameArray(skus.get(index).valueIds, skus.get(index2).valueIds)) {
                     List<SKU> thisSkuValue = skuRelationMap.get(skus.get(index2));
                     if (thisSkuValue != null) {
                         thisSkuValue.add(skus.get(index));
@@ -291,7 +338,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     //判断两个int[]值是否相同
-    private boolean isSame(int[] array1, int[] array2) {
+    private boolean isSameArray(int[] array1, int[] array2) {
         return Arrays.equals(array1, array2);
     }
 
