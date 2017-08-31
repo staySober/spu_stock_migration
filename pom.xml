@@ -128,7 +128,7 @@
         <finalName>spu_stock_migration</finalName>
         <resources>
             <resource>
-                <targetPath>${project.build.directory}/classes</targetPath>
+                <targetPath>${project.build.directory}/</targetPath>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
                 <includes>
