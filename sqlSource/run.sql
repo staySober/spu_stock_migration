@@ -1,17 +1,3 @@
-create table yitiao_product_sku_stock (
-                id int NOT NULL auto_increment,
-                name varchar(200),
-                sku_id int,
-                quantity int,
-                notify_quantity int,
-                priority int,
-                is_replenishing tinyint,
-                is_active tinyint,
-                is_deleted tinyint,
-                PRIMARY KEY (id),
-                KEY IDX_SKU_ID_AND_IS_ACTIVE (sku_id,is_active)
-              )ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8 COMMENT='sku stock table';
-
 
 insert into yitiao_product_sku_stock
 (
@@ -20,6 +6,7 @@ insert into yitiao_product_sku_stock
     quantity,
     notify_quantity,
     priority,
+    created_time,
     is_replenishing,
     is_active,
     is_deleted)
@@ -29,6 +16,7 @@ select
       qty,
       notify_stock_qty,
       1,
+      now(),
       status,
       1,
       0
@@ -40,21 +28,6 @@ set notify_quantity = 0
 where
 notify_quantity is null;
 
-
-create table yitiao_product_sku_stock_history (
-                id int NOT NULL auto_increment,
-                stock_id int,
-                sku_id int,
-                operation_time datetime DEFAULT CURRENT_TIMESTAMP,
-                adjust_amount int,
-                current_amount int,
-                note VARCHAR(200),
-                order_number varchar(50),
-                operator varchar(50),
-                operator_id int,
-                PRIMARY KEY (id),
-                KEY ix_yitiao_stock_history_product_id (operation_time)
-)ENGINE=InnoDB AUTO_INCREMENT = 0 DEFAULT CHARSET=utf8;
 
 
 insert into yitiao_product_sku_stock_history

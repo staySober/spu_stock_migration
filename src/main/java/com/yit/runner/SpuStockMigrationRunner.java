@@ -63,6 +63,7 @@ public class SpuStockMigrationRunner extends BaseTest {
 
             //case Spu empty
             if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
+                print("WARING : skip Spu ID : --------------> " + spuId +"; spu is empty!");
                 continue;
             }
             //坑 这个地方注意if语句的顺序
@@ -121,7 +122,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         Integer pointRecord;
         if (file.exists()) {
             //read point
-            pointRecord = Integer.parseInt(ReadUtils.read(file));
+            pointRecord = Integer.parseInt(ReadUtils.read(file).trim());
         } else {
             OutputStream os = new FileOutputStream(file);
             os.write("".getBytes());
@@ -147,6 +148,7 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     //迁移结束收尾工作
     private void endProcessed() throws Exception {
+        print("end task start --------> clear optionText.");
         List<Integer> spuIdList = new ArrayList<>();
         String sql = ReadUtils.read(new File("sqlSource/endProcess.sql"));
         sqlHelper.exec(sql);
@@ -161,7 +163,10 @@ public class SpuStockMigrationRunner extends BaseTest {
             Product product = new Product();
             product.id = spuId;
             productService.updateProduct(product,"系统",0);
+            print("Spu reload : -------> spu ID: " + spuId);
         }
+
+        print("spu stock migration successfully, Congratulation!");
 
     }
 
