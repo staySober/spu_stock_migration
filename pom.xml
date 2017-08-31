@@ -135,6 +135,7 @@
                     <include>**/*.xml</include>
                     <include>**/*.properties</include>
                     <include>**/*.sql</include>
+                    <include>**/*.sh</include>
                 </includes>
             </resource>
             <!-- 结合com.alibaba.dubbo.container.Main -->
