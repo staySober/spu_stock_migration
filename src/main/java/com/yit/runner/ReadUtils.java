@@ -1,9 +1,19 @@
 package com.yit.runner;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.io.Writer;
+import java.util.Arrays;
+
+import org.junit.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Created by sober on 2017/8/4.

@@ -150,7 +150,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     private void endProcessed() throws Exception {
         print("end task start --------> clear optionText.");
         List<Integer> spuIdList = new ArrayList<>();
-        String sql = ReadUtils.read(new File("sqlSource/endProcess.sql"));
+        String sql = readStringFromFile("sqlSource/endProcess.sql");
         sqlHelper.exec(sql);
         //todo reload all spu
         String reloadSpu = "select id from yitiao_product_spu where is_deleted = 0";
@@ -305,7 +305,7 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     private void prepareAction() throws Exception {
-        String sqls = ReadUtils.read(new File("sqlSource/run.sql"));
+        String sqls = readStringFromFile("sqlSource/run.sql");
         for (String sql : sqls.split(";")) {
             if (!StringUtils.isBlank(sql)) {
                 sqlHelper.exec(sql);
