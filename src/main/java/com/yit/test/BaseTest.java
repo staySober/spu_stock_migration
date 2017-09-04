@@ -104,5 +104,10 @@ public abstract class BaseTest {
         System.exit(0);
     }
 
+
+    public String readStringFromFile(String path) throws Exception {
+        return new String(readByteFromFile(path));
+    }
+
     // endregion
 }

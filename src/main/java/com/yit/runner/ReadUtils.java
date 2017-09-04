@@ -1,11 +1,9 @@
 package com.yit.runner;
-
-import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Arrays;
+
 
 /**
  * Created by sober on 2017/8/4.
@@ -16,18 +14,16 @@ import java.util.Arrays;
 public class ReadUtils {
 
     public static String read(File file) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream((int) file.length());
-        InputStream is = new FileInputStream(file);
-
-        byte[] read = new byte[1024];
-        int len = 0;
-        while((len = is.read(read)) != -1) {
-            bos.write(read,0,len);
-         }
-
-        is.close();
-        bos.close();
-       return bos.toString();
+        BufferedReader in = new BufferedReader(new FileReader(file));
+        StringBuffer buffer = new StringBuffer();
+        String line = null;
+        while ((line = in.readLine()) != null) {
+            buffer.append(line);
+        }
+        in.close();
+        return buffer.toString();
     }
+
+
 
 }

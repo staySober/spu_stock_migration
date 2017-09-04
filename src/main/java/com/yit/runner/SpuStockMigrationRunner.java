@@ -117,12 +117,12 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     //迁移初始化
-    private void init() throws IOException {
+    private void init() throws Exception {
         File file = new File("sqlSource/pointRecord.txt");
         Integer pointRecord;
         if (file.exists()) {
             //read point
-            pointRecord = Integer.parseInt(ReadUtils.read(file).trim());
+            pointRecord = Integer.parseInt(readStringFromFile("sqlSource/pointRecord.txt").trim());
         } else {
             OutputStream os = new FileOutputStream(file);
             os.write("".getBytes());
@@ -304,7 +304,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         return option;
     }
 
-    private void prepareAction() throws IOException {
+    private void prepareAction() throws Exception {
         String sqls = ReadUtils.read(new File("sqlSource/run.sql"));
         for (String sql : sqls.split(";")) {
             if (!StringUtils.isBlank(sql)) {
