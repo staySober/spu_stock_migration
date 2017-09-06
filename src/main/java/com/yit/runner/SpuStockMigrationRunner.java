@@ -1,6 +1,7 @@
 package com.yit.runner;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -54,11 +55,13 @@ public class SpuStockMigrationRunner extends BaseTest {
             oldProduct = JSON.parseObject(JSON.toJSONString(product), Product.class);
 
             boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
+
             //spu empty
             if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
                 print("WARING : skip Spu ID : -------> " + spuId + "; spu is empty!");
                 continue;
             }
+
             //只有一个销售方式
             if (product.skuInfo.options.size() == 1 && haveSaleOption) {
                 Option option = makeUpNoOption();
@@ -73,17 +76,21 @@ public class SpuStockMigrationRunner extends BaseTest {
                 });
                 removeSaleOption(product);
             }
+
             //多规格且有销售方式
             if (product.skuInfo.options.size() > 1 && haveSaleOption) {
                 removeSaleOption(product);
             }
+
             removeDuplicateValueIdSku(product);
+
             migrationSpuStock();
+
             saveNewProduct(product);
-            recordPointToText(spuId);
+
         }
 
-        sqlHelper.exec(readStringFromFile(new File("conf/endProcess.sql").getAbsolutePath()));
+        sqlHelper.exec(readStringFromFile(new File("conf/endScript.sql").getAbsolutePath()));
         print("Finished!");
     }
 
@@ -99,7 +106,14 @@ public class SpuStockMigrationRunner extends BaseTest {
             os.close();
             pointRecord = 0;
 
-            prepareAction();
+            sqlHelper.exec(getMigrationSql());
+            String absolutePath = new File("conf/initScript.sql").getAbsolutePath();
+            String sqls = readStringFromFile(absolutePath);
+            for (String sql2 : sqls.split(";")) {
+                if (!StringUtils.isBlank(sql)) {
+                    sqlHelper.exec(sql2);
+                }
+            }
         }
 
         sqlHelper.exec(sql, (row) -> {spuIdList.add(row.getInt("id"));});
@@ -111,13 +125,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
     }
 
-    private void recordPointToText(Integer spuId) throws IOException {
-        OutputStream os = new FileOutputStream(pointFile);
-        os.write(String.valueOf(spuId).getBytes());
-        os.close();
-    }
-
-    private void saveNewProduct(Product product) {
+    private void saveNewProduct(Product product) throws IOException {
         try {
             productService.updateProduct(product, "系统", 0);
             print(String.format("Save-Product Action.  ID: %s  succeed", product.id));
@@ -125,35 +133,40 @@ public class SpuStockMigrationRunner extends BaseTest {
             print(e.toString(), String.format("系统错误,保存Product ID: %s 时出错!", product.id));
         }
         skuRelationMap.clear();
+
+        //record point
+        OutputStream os = new FileOutputStream(pointFile);
+        os.write(String.valueOf(product.id).getBytes());
+        os.close();
     }
 
     private void migrationSpuStock() {
         String sqlStockName = "update yitiao_product_sku_stock set name = ? ,is_active = ? where sku_id = ? ";
 
-        String sqlStock = "update yitiao_product_sku_stock set sku_id = ? where sku_id = ?";
+        String sqlStockRef = "update yitiao_product_sku_stock set sku_id = ? where sku_id = ? ";
 
-        String sql = "select id from yitiao_product_sku_stock where  sku_id = ? and is_deleted = 0 order by id asc";
+        String sqlPriority = "select id from yitiao_product_sku_stock where  sku_id = ? and is_deleted = 0 order by id asc";
 
         for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
             SKU masterSku = entry.getKey();
             List<SKU> followSku = entry.getValue();
-            boolean defaultStock = computeDefaultStock(masterSku.id);
-            //master
-            sqlHelper.exec(sqlStockName, new Object[] {"现货", defaultStock ? 1 : 0, masterSku.id});
-            //follower
-            for (SKU sku : followSku) {
-                String stockName = getStockName(sku.id);
-                boolean defaultStockFollow = computeDefaultStock(sku.id);
-                sqlHelper.exec(sqlStockName, new Object[] {stockName, defaultStockFollow ? 1 : 0, sku.id});
 
+            //master name
+            sqlHelper.exec(sqlStockName, new Object[] {"现货", computeDefaultStock(masterSku.id) ? 1 : 0, masterSku.id});
+
+            //follower info
+            for (SKU sku : followSku) {
+                sqlHelper.exec(sqlStockName, new Object[] {getStockName(sku.id), computeDefaultStock(sku.id) ? 1 : 0, sku.id});
                 Object[] params2 = new Object[] {masterSku.id, sku.id};
-                sqlHelper.exec(sqlStock, params2);
+                sqlHelper.exec(sqlStockRef, params2);
             }
+
             //priority
             List<Integer> idList = new ArrayList<>();
-            sqlHelper.exec(sql, new Object[] {masterSku.id}, (row) -> {
+            sqlHelper.exec(sqlPriority, new Object[] {masterSku.id}, (row) -> {
                 idList.add(row.getInt("id"));
             });
+
             for (int i = 0; i < idList.size(); i++) {
                 String sql2 = "update yitiao_product_sku_stock set priority = ? where id = ? ";
                 sqlHelper.exec(sql2, new Object[] {i + 1, idList.get(i)});
@@ -240,19 +253,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         option.values = values;
         return option;
     }
-
-    private void prepareAction() throws Exception {
-        sqlHelper.exec(getMigrationSql());
-        File file = new File("conf/run.sql");
-        String absolutePath = file.getAbsolutePath();
-        String sqls = readStringFromFile(absolutePath);
-        for (String sql : sqls.split(";")) {
-            if (!StringUtils.isBlank(sql)) {
-                sqlHelper.exec(sql);
-            }
-        }
-    }
-
+    
     private int getSaleOptionIndex(Product product) {
         int saleOptionIndex = -1;
         for (int i = 0; i < product.skuInfo.options.size(); i++) {
