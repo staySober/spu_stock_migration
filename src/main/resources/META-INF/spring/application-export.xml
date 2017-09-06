@@ -23,9 +23,6 @@
     </bean>
 
 
-    <bean id="cacheService" class="com.yit.common.utils.cache.CacheService" />
-    <bean id="keyValueService" class="com.yit.common.utils.keyvalue.KeyValueService" />
-
     <bean class="com.yit.runner.SpuStockMigrationRunner" init-method="start"/>
 
     <bean id="productService" class="com.alibaba.dubbo.config.spring.ReferenceBean">
@@ -38,14 +35,6 @@
     </bean>
 
 
-
-    <bean id="fullSpuService" class="com.alibaba.dubbo.config.spring.ReferenceBean">
-        <property name="interface" value="com.yit.product.api.FullSpuService"/>
-        <property name="application" ref="dubboApplicationConfig"/>
-        <property name="registry" ref="dubboRegistryConfig"/>
-        <property name="check" value="false"/>
-        <property name="version" value="${dubbo.reference.version}"/>
-    </bean>
 
 
     <!--使用tomcat jdbc pool,仅读写库需要使用事务-->

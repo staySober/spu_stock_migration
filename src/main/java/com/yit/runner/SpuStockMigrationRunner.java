@@ -25,8 +25,6 @@ import com.yit.product.entity.Product.Option;
 import com.yit.product.entity.Product.Option.Value;
 import com.yit.product.entity.Product.SKU;
 import com.yit.test.BaseTest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -63,7 +61,7 @@ public class SpuStockMigrationRunner extends BaseTest {
 
             //case Spu empty
             if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
-                print("WARING : skip Spu ID : --------------> " + spuId +"; spu is empty!");
+                print("WARING : skip Spu ID : -------> " + spuId + "; spu is empty!");
                 continue;
             }
             //坑 这个地方注意if语句的顺序
@@ -110,7 +108,7 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     //记录执行的point的偏移
     private void recordPointToText(Integer spuId) throws IOException {
-        File file = new File("sqlSource/pointRecord.txt");
+        File file = new File("pointRecord.txt");
         OutputStream os = new FileOutputStream(file);
         os.write(String.valueOf(spuId).getBytes());
         os.close();
@@ -118,11 +116,11 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     //迁移初始化
     private void init() throws Exception {
-        File file = new File("sqlSource/pointRecord.txt");
+        File file = new File("pointRecord.txt");
         Integer pointRecord;
         if (file.exists()) {
             //read point
-            pointRecord = Integer.parseInt(readStringFromFile("sqlSource/pointRecord.txt").trim());
+            pointRecord = Integer.parseInt(readStringFromFile("pointRecord.txt").trim());
         } else {
             OutputStream os = new FileOutputStream(file);
             os.write("".getBytes());
@@ -141,8 +139,8 @@ public class SpuStockMigrationRunner extends BaseTest {
         //从上一次的断点继续执行
         if (pointRecord != 0) {
             int indexPoint = spuIdList.indexOf(pointRecord);
-            spuIdList = spuIdList.subList(indexPoint + 1 ,spuIdList.size());
-            print("Continue from the last operation is carried out. Last SpuId : ---> {"+pointRecord+"}");
+            spuIdList = spuIdList.subList(indexPoint + 1, spuIdList.size());
+            print("Continue from the last operation is carried out. Last SpuId : ---> {" + pointRecord + "}");
         }
     }
 
@@ -150,11 +148,12 @@ public class SpuStockMigrationRunner extends BaseTest {
     private void endProcessed() throws Exception {
         print("end task start --------> clear optionText.");
         List<Integer> spuIdList = new ArrayList<>();
-        String sql = readStringFromFile("sqlSource/endProcess.sql");
+        File file = new File("conf/endProcess.sql");
+        String sql = readStringFromFile(file.getAbsolutePath());
         sqlHelper.exec(sql);
         //todo reload all spu
         String reloadSpu = "select id from yitiao_product_spu where is_deleted = 0";
-        sqlHelper.exec(reloadSpu,(row)->{
+        sqlHelper.exec(reloadSpu, (row) -> {
             int id = row.getInt("id");
             spuIdList.add(id);
         });
@@ -162,7 +161,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         for (Integer spuId : spuIdList) {
             Product product = new Product();
             product.id = spuId;
-            productService.updateProduct(product,"系统",0);
+            productService.updateProduct(product, "系统", 0);
             print("Spu reload : -------> spu ID: " + spuId);
         }
 
@@ -305,7 +304,10 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     private void prepareAction() throws Exception {
-        String sqls = readStringFromFile("sqlSource/run.sql");
+        sqlHelper.exec(getMigrationSql());
+        File file = new File("conf/run.sql");
+        String absolutePath = file.getAbsolutePath();
+        String sqls = readStringFromFile(absolutePath);
         for (String sql : sqls.split(";")) {
             if (!StringUtils.isBlank(sql)) {
                 sqlHelper.exec(sql);
@@ -381,4 +383,29 @@ public class SpuStockMigrationRunner extends BaseTest {
         return isdefaultStock[0];
     }
 
+    public String getMigrationSql() {
+        return
+            "insert into yitiao_product_sku_stock "
+                + "( "
+                + "    sku_id, "
+                + "    name, "
+                + "    quantity, "
+                + "    notify_quantity, "
+                + "    priority, "
+                + "    created_time, "
+                + "    is_replenishing, "
+                + "    is_active, "
+                + "    is_deleted) "
+                + "select "
+                + "      product_id, "
+                + "      '现货', "
+                + "      qty, "
+                + "      notify_stock_qty, "
+                + "      1, "
+                + "      now(), "
+                + "      status, "
+                + "      1, "
+                + "      0 "
+                + "from cataloginventory_stock_item;";
+    }
 }

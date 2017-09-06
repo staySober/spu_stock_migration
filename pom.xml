@@ -7,92 +7,76 @@
     <groupId>groupId</groupId>
     <artifactId>spu_stock_migration</artifactId>
     <packaging>jar</packaging>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
 
     <build>
+        <finalName>spu_stock_migration</finalName>
+        <resources>
+            <resource>
+                <filtering>true</filtering>
+                <directory>src/main/resources</directory>
+            </resource>
+
+        </resources>
         <plugins>
-            <!-- 资源文件拷贝插件 -->
+            <!--打包到指定目录-->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
-                <version>2.7</version>
-                <configuration>
-                    <encoding>UTF-8</encoding>
-                </configuration>
-            </plugin>
-            <!-- java编译插件 -->
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.1</version>
-                <configuration>
-                    <encoding>UTF-8</encoding>
-                    <source>1.8</source>
-                    <target>1.8</target>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
+                <version>2.5</version>
                 <executions>
                     <execution>
-                        <id>attach-sources</id>
+                        <id>copy-xmls</id>
+                        <phase>process-sources</phase>
                         <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-             <!-- 配置manifest文件，以及服务jar的启动类 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <configuration>
-                    <classesDirectory>target/classes/</classesDirectory>
-                    <archive>
-                        <manifest>
-                            <!--执行Jar文件的启动类,使用dubbo自带的启动类 -->
-                            <mainClass>com.yit.runner.SpuStockMigrationRunner</mainClass>
-                            <!-- 打包时 MANIFEST.MF文件不记录的时间戳版本 -->
-                            <useUniqueVersions>false</useUniqueVersions>
-                            <addClasspath>true</addClasspath>
-                            <!--将服务依赖的jar文件，放到lib文件夹下 -->
-                            <classpathPrefix>lib/</classpathPrefix>
-                        </manifest>
-                        <manifestEntries>
-                            <Class-Path>.</Class-Path>
-                        </manifestEntries>
-                    </archive>
-                </configuration>
-            </plugin>
-            <!-- 将运行服务的jar文件，依赖的其它jar文件放在lib文件夹下 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>copy-dependencies</goal>
+                            <goal>copy-resources</goal>
                         </goals>
                         <configuration>
-                            <type>jar</type>
-                            <includeTypes>jar</includeTypes>
-                            <outputDirectory>
-                                ${project.build.directory}/lib
-                            </outputDirectory>
+                            <outputDirectory>${basedir}/target/spu_stock_migration</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${basedir}/src/main/resources/script</directory>
+                                    <includes>
+                                        <include>**/*.sh</include>
+                                    </includes>
+                                </resource>
+                            </resources>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
 
 
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <descriptors>
+                        <descriptor>src/main/resources/assemblies/release.xml</descriptor>
+                    </descriptors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <encoding>UTF-8</encoding>
+                    <showWarnings>true</showWarnings>
+                </configuration>
+            </plugin>
         </plugins>
 
-         <pluginManagement>
+        <pluginManagement>
             <plugins>
                 <!-- 解决Maven插件在Eclipse内执行了一系列的生命周期引起冲突 -->
                 <plugin>
@@ -112,7 +96,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <ignore />
+                                        <ignore/>
                                     </action>
                                 </pluginExecution>
                             </pluginExecutions>
@@ -122,29 +106,6 @@
             </plugins>
         </pluginManagement>
 
-        <finalName>spu_stock_migration</finalName>
-        <resources>
-            <resource>
-                <targetPath>${project.build.directory}/</targetPath>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-                <includes>
-                    <include>**/*.xml</include>
-                    <include>**/*.properties</include>
-                    <include>**/*.sql</include>
-                    <include>**/*.sh</include>
-                </includes>
-            </resource>
-            <!-- 结合com.alibaba.dubbo.container.Main -->
-            <resource>
-                <targetPath>${project.build.directory}/classes/META-INF/spring</targetPath>
-                <directory>src/main/resources/META-INF/spring</directory>
-                <filtering>true</filtering>
-                <includes>
-                    <include>application-export.xml</include>
-                </includes>
-            </resource>
-        </resources>
 
     </build>
 
@@ -152,7 +113,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <parent_version>0.1.1</parent_version>
 
-        <api-util_version>1.2.2</api-util_version>
+        <api-util_version>2.3.5</api-util_version>
         <!-- dependency versions -->
         <!-- 2nd party libs-->
         <!-- common libs -->
