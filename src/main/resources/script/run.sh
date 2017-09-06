@@ -1,0 +1,1 @@
+sudo nohup ./start.sh >& spu_stock_migration_run.log &
