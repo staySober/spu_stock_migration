@@ -34,7 +34,6 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     @Autowired
     ProductService productService;
-
     @Autowired
     SqlHelper sqlHelper;
 
@@ -43,6 +42,8 @@ public class SpuStockMigrationRunner extends BaseTest {
     Map<SKU, List<SKU>> skuRelationMap = new HashMap<>();
 
     List<Integer> spuIdList = new ArrayList<>();
+
+    File pointFile = new File("pointRecord.txt");
 
     @Override
     public void run() throws Exception {
@@ -76,47 +77,32 @@ public class SpuStockMigrationRunner extends BaseTest {
             if (product.skuInfo.options.size() > 1 && haveSaleOption) {
                 removeSaleOption(product);
             }
-
             removeDuplicateValueIdSku(product);
             migrationSpuStock();
             saveNewProduct(product);
             recordPointToText(spuId);
         }
 
-        endProcessed();
-
+        sqlHelper.exec(readStringFromFile(new File("conf/endProcess.sql").getAbsolutePath()));
+        print("Finished!");
     }
 
-    //remember point
-    private void recordPointToText(Integer spuId) throws IOException {
-        File file = new File("pointRecord.txt");
-        OutputStream os = new FileOutputStream(file);
-        os.write(String.valueOf(spuId).getBytes());
-        os.close();
-    }
-
-    //init
     private void init() throws Exception {
-        File file = new File("pointRecord.txt");
+        String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
         Integer pointRecord;
-        if (file.exists()) {
+        if (pointFile.exists()) {
             //read point
             pointRecord = Integer.parseInt(readStringFromFile("pointRecord.txt").trim());
         } else {
-            OutputStream os = new FileOutputStream(file);
-            os.write("".getBytes());
+            OutputStream os = new FileOutputStream(pointFile);
+            os.write("0".getBytes());
             os.close();
-
-            //prepare action
-            prepareAction();
             pointRecord = 0;
-        }
-        //获取所有SPU ID
-        String sql = "select id from yitiao_product_spu where is_deleted = 0 order by id asc";
 
-        sqlHelper.exec(sql, (row) -> {
-            spuIdList.add(row.getInt("id"));
-        });
+            prepareAction();
+        }
+
+        sqlHelper.exec(sql, (row) -> {spuIdList.add(row.getInt("id"));});
         //从上一次的断点继续执行
         if (pointRecord != 0) {
             int indexPoint = spuIdList.indexOf(pointRecord);
@@ -125,13 +111,10 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
     }
 
-    private void endProcessed() throws Exception {
-        sqlHelper.exec(readStringFromFile(new File("conf/endProcess.sql").getAbsolutePath()));
-        print("Finished!");
-    }
-
-    public static void main(String[] args) {
-        runTest(SpuStockMigrationRunner.class);
+    private void recordPointToText(Integer spuId) throws IOException {
+        OutputStream os = new FileOutputStream(pointFile);
+        os.write(String.valueOf(spuId).getBytes());
+        os.close();
     }
 
     private void saveNewProduct(Product product) {
@@ -234,7 +217,14 @@ public class SpuStockMigrationRunner extends BaseTest {
     private void removeSaleOption(Product product) {
         int saleOptionIndex = getSaleOptionIndex(product);
         product.skuInfo.options.remove(saleOptionIndex);
-        removeSaleOptionSkuValueId(saleOptionIndex, product.skuInfo.skus);
+
+        for (int index = 0; index < product.skuInfo.skus.size(); index++) {
+            int[] valueIds = product.skuInfo.skus.get(index).valueIds;
+            List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
+            collect.remove(saleOptionIndex);
+            int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
+            product.skuInfo.skus.get(index).valueIds = newValueIds;
+        }
     }
 
     private Option makeUpNoOption() {
@@ -263,9 +253,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
     }
 
-    //获取销售方式所对应的index
     private int getSaleOptionIndex(Product product) {
-        //销售方式 option 在集合中的下标
         int saleOptionIndex = -1;
         for (int i = 0; i < product.skuInfo.options.size(); i++) {
             if ("销售方式".equals(product.skuInfo.options.get(i).label)) {
@@ -279,17 +267,6 @@ public class SpuStockMigrationRunner extends BaseTest {
                 String.format("SPU: %s 获取销售方式option下标发生异常,请检查该SPU是否有 销售方式 option!", product.id));
         }
         return saleOptionIndex;
-    }
-
-    //去掉sku中valueId对应的销售方式optionId
-    private void removeSaleOptionSkuValueId(int saleOptionIndex, List<SKU> thisSkus) {
-        for (int index = 0; index < thisSkus.size(); index++) {
-            int[] valueIds = thisSkus.get(index).valueIds;
-            List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
-            collect.remove(saleOptionIndex);
-            int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
-            thisSkus.get(index).valueIds = newValueIds;
-        }
     }
 
     public boolean computeDefaultStock(int skuId) {
@@ -349,5 +326,9 @@ public class SpuStockMigrationRunner extends BaseTest {
                 + "      1, "
                 + "      0 "
                 + "from cataloginventory_stock_item;";
+    }
+
+    public static void main(String[] args) {
+        runTest(SpuStockMigrationRunner.class);
     }
 }
