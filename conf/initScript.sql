@@ -39,5 +39,3 @@ set
     where
         history.sku_id = stock.sku_id
     );
-
-alter table yitiao_product_sku_stock_history drop column sku_id;

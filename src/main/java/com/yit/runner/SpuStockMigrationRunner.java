@@ -86,8 +86,8 @@ public class SpuStockMigrationRunner extends BaseTest {
 
             migrationSpuStock();
 
+            //todo Sku上下架的更新 根据使用中的库存对应的老的sku的状态来进行更新留下来的sku的上下架状态
             saveNewProduct(product);
-
         }
 
         sqlHelper.exec(readStringFromFile(new File("conf/endScript.sql").getAbsolutePath()));
@@ -152,7 +152,7 @@ public class SpuStockMigrationRunner extends BaseTest {
             List<SKU> followSku = entry.getValue();
 
             //master name
-            sqlHelper.exec(sqlStockName, new Object[] {"现货", computeDefaultStock(masterSku.id) ? 1 : 0, masterSku.id});
+            sqlHelper.exec(sqlStockName, new Object[] {getStockName(masterSku.id), computeDefaultStock(masterSku.id) ? 1 : 0, masterSku.id});
 
             //follower info
             for (SKU sku : followSku) {
@@ -203,23 +203,29 @@ public class SpuStockMigrationRunner extends BaseTest {
             }
         });
 
-        //remove sku by condition
-        for (int index = skus.size() - 1; index >= 0; index--) {
-            inner:
-            for (int index2 = index - 1; index2 >= 0; index2--) {
-                //如果valueIds相同
-                if (Arrays.equals(skus.get(index).valueIds, skus.get(index2).valueIds)) {
-                    List<SKU> thisSkuValue = skuRelationMap.get(skus.get(index2));
-                    if (thisSkuValue != null) {
-                        thisSkuValue.add(skus.get(index));
-                        skuRelationMap.put(skus.get(index2), thisSkuValue);
-                    } else {
-                        List<SKU> newSkus = new ArrayList<>();
-                        newSkus.add(skus.get(index));
-                        skuRelationMap.put(skus.get(index2), newSkus);
-                    }
-                    skus.remove(index);
-                    break inner;
+        Map<String,List<SKU>> temp = new HashMap<>();
+        for (SKU sku : skus) {
+            List<SKU> thisSkus = temp.get(Arrays.toString(sku.valueIds));
+            if (CollectionUtils.isEmpty(thisSkus)) {
+                List<SKU> newSkus = new ArrayList<>();
+                newSkus.add(sku);
+                temp.put(Arrays.toString(sku.valueIds),newSkus);
+            }else {
+                thisSkus.add(sku);
+                temp.put(Arrays.toString(sku.valueIds),thisSkus);
+            }
+        }
+
+        for (Entry<String, List<SKU>> skuRelation : temp.entrySet()) {
+            List<SKU> value = skuRelation.getValue();
+            //存在重复关系
+            if (value.size() > 1) {
+                List<SKU> followSkus = value.subList(1, value.size());
+                skuRelationMap.put(value.get(0),followSkus);
+
+                //delete duplicate sku
+                for (SKU followSku : followSkus) {
+                    skus.remove(followSku);
                 }
             }
         }
@@ -318,7 +324,7 @@ public class SpuStockMigrationRunner extends BaseTest {
                 + "    is_deleted) "
                 + "select "
                 + "      product_id, "
-                + "      '现货', "
+                + "      '现货／2个工作日发货', "
                 + "      qty, "
                 + "      notify_stock_qty, "
                 + "      1, "
