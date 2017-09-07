@@ -1,7 +1,6 @@
 package com.yit.runner;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -48,46 +47,20 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     @Override
     public void run() throws Exception {
+        //test func
+        SingleMigrationTest();
+        //main func
+        //FullMigration();
+    }
+
+    public void SingleMigrationTest() throws IOException {
+        SpuMigrationMain(4132);
+    }
+
+    public void FullMigration() throws Exception {
         init();
-
         for (Integer spuId : spuIdList) {
-            Product product = productService.getProductById(spuId);
-            oldProduct = JSON.parseObject(JSON.toJSONString(product), Product.class);
-
-            boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
-
-            //spu empty
-            if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
-                print("WARING : skip Spu ID : -------> " + spuId + "; spu is empty!");
-                continue;
-            }
-
-            //只有一个销售方式
-            if (product.skuInfo.options.size() == 1 && haveSaleOption) {
-                Option option = makeUpNoOption();
-                product.skuInfo.options.add(option);
-                //给sku添加valueIds
-                product.skuInfo.skus.forEach(sku -> {
-                    int[] valueIds = sku.valueIds;
-                    List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
-                    collect.add(option.values.get(0).valueId);
-                    int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
-                    sku.valueIds = newValueIds;
-                });
-                removeSaleOption(product);
-            }
-
-            //多规格且有销售方式
-            if (product.skuInfo.options.size() > 1 && haveSaleOption) {
-                removeSaleOption(product);
-            }
-
-            removeDuplicateValueIdSku(product);
-
-            migrationSpuStock();
-
-            //todo Sku上下架的更新 根据使用中的库存对应的老的sku的状态来进行更新留下来的sku的上下架状态
-            saveNewProduct(product);
+            SpuMigrationMain(spuId);
         }
 
         sqlHelper.exec(readStringFromFile(new File("conf/endScript.sql").getAbsolutePath()));
@@ -99,7 +72,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         Integer pointRecord;
         if (pointFile.exists()) {
             //read point
-            pointRecord = Integer.parseInt(readStringFromFile("pointRecord.txt").trim());
+            pointRecord = Integer.parseInt(readStringFromFile(pointFile.getAbsolutePath()).trim());
         } else {
             OutputStream os = new FileOutputStream(pointFile);
             os.write("0".getBytes());
@@ -123,6 +96,46 @@ public class SpuStockMigrationRunner extends BaseTest {
             spuIdList = spuIdList.subList(indexPoint + 1, spuIdList.size());
             print("Continue from the last operation is carried out. Last SpuId : ---> {" + pointRecord + "}");
         }
+    }
+
+    private void SpuMigrationMain(Integer spuId) throws IOException {
+        Product product = productService.getProductById(spuId);
+        oldProduct = JSON.parseObject(JSON.toJSONString(product), Product.class);
+
+        boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
+
+        //spu empty
+        if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
+            print("WARING : skip Spu ID : -------> " + spuId + "; spu is empty!");
+            return;
+        }
+
+        //只有一个销售方式
+        if (product.skuInfo.options.size() == 1 && haveSaleOption) {
+            Option option = makeUpNoOption();
+            product.skuInfo.options.add(option);
+            //给sku添加valueIds
+            product.skuInfo.skus.forEach(sku -> {
+                int[] valueIds = sku.valueIds;
+                List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
+                collect.add(option.values.get(0).valueId);
+                int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
+                sku.valueIds = newValueIds;
+            });
+            removeSaleOption(product);
+        }
+
+        //多规格且有销售方式
+        if (product.skuInfo.options.size() > 1 && haveSaleOption) {
+            removeSaleOption(product);
+        }
+
+        removeDuplicateValueIdSku(product);
+
+        migrationSpuStock();
+
+        //todo Sku上下架的更新 根据使用中的库存对应的老的sku的状态来进行更新留下来的sku的上下架状态
+        saveNewProduct(product);
     }
 
     private void saveNewProduct(Product product) throws IOException {
@@ -259,7 +272,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         option.values = values;
         return option;
     }
-    
+
     private int getSaleOptionIndex(Product product) {
         int saleOptionIndex = -1;
         for (int i = 0; i < product.skuInfo.options.size(); i++) {

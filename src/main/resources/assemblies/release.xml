@@ -21,6 +21,14 @@
                 <include>*.sh*</include>
             </includes>
         </fileSet>
+
+        <fileSet>
+            <directory>src/main/resources/conf</directory>
+            <outputDirectory>/conf/</outputDirectory>
+            <includes>
+                <include>*.sql*</include>
+            </includes>
+        </fileSet>
     </fileSets>
 
     <dependencySets>
