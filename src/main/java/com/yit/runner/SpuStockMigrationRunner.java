@@ -39,11 +39,13 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     Product oldProduct;
 
-    Map<SKU, List<SKU>> skuRelationMap = new HashMap<>();
+    Product newProduct;
 
     List<Integer> spuIdList = new ArrayList<>();
 
     File pointFile = new File("pointRecord.txt");
+
+    Map<SKU, List<SKU>> skuRelationMap = new HashMap<>();
 
     @Override
     public void run() throws Exception {
@@ -89,7 +91,9 @@ public class SpuStockMigrationRunner extends BaseTest {
             }
         }
 
-        sqlHelper.exec(sql, (row) -> {spuIdList.add(row.getInt("id"));});
+        sqlHelper.exec(sql, (row) -> {
+            spuIdList.add(row.getInt("id"));
+        });
         //从上一次的断点继续执行
         if (pointRecord != 0) {
             int indexPoint = spuIdList.indexOf(pointRecord);
@@ -99,93 +103,141 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     private void SpuMigrationMain(Integer spuId) throws IOException {
-        Product product = productService.getProductById(spuId);
-        oldProduct = JSON.parseObject(JSON.toJSONString(product), Product.class);
+        newProduct = productService.getProductById(spuId);
+        oldProduct = JSON.parseObject(JSON.toJSONString(newProduct), Product.class);
 
-        boolean haveSaleOption = product.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
+        boolean haveSaleOption = newProduct.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
 
         //spu empty
-        if ((product.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(product.skuInfo.skus))) {
+        if ((newProduct.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(newProduct.skuInfo.skus))) {
             print("WARING : skip Spu ID : -------> " + spuId + "; spu is empty!");
             return;
         }
 
         //只有一个销售方式
-        if (product.skuInfo.options.size() == 1 && haveSaleOption) {
+        if (newProduct.skuInfo.options.size() == 1 && haveSaleOption) {
             Option option = makeUpNoOption();
-            product.skuInfo.options.add(option);
+            newProduct.skuInfo.options.add(option);
             //给sku添加valueIds
-            product.skuInfo.skus.forEach(sku -> {
+            newProduct.skuInfo.skus.forEach(sku -> {
                 int[] valueIds = sku.valueIds;
                 List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
                 collect.add(option.values.get(0).valueId);
                 int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
                 sku.valueIds = newValueIds;
             });
-            removeSaleOption(product);
+            removeSaleOption();
         }
 
         //多规格且有销售方式
-        if (product.skuInfo.options.size() > 1 && haveSaleOption) {
-            removeSaleOption(product);
+        if (newProduct.skuInfo.options.size() > 1 && haveSaleOption) {
+            removeSaleOption();
         }
 
-        removeDuplicateValueIdSku(product);
+        removeDuplicateValueIdSku();
 
         migrationSpuStock();
 
-        //todo Sku上下架的更新 根据使用中的库存对应的老的sku的状态来进行更新留下来的sku的上下架状态
-        saveNewProduct(product);
+        setMultiStockPriority();
+
+        setStockDefaultActive();
+
+        updateSkuSaleStatus();
+
+        updateStockRelation();
+
+        saveNewProduct();
     }
 
-    private void saveNewProduct(Product product) throws IOException {
+    private void updateSkuSaleStatus() {
+        int skuId = computeDefaultStock();
+        SKU activeSku = oldProduct.skuInfo.skus.stream().filter(x -> x.id == skuId).findFirst().get();
+        boolean isOnsale = activeSku.saleInfo.onSale;
+        for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
+            SKU maskterSku = entry.getKey();
+            newProduct.skuInfo.skus.forEach(sku -> {
+                if (sku.id == maskterSku.id) {
+                    sku.saleInfo.onSale = isOnsale;
+                }
+            });
+        }
+    }
+
+    private void updateStockRelation() {
+        String sqlStockRef = "update yitiao_product_sku_stock set sku_id = ? where sku_id = ? ";
+        for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
+            SKU masterSku = entry.getKey();
+            List<SKU> followSku = entry.getValue();
+            for (SKU sku : followSku) {
+                sqlHelper.exec(sqlStockRef, new Object[] {masterSku.id, sku.id});
+            }
+        }
+    }
+
+    private void saveNewProduct() throws IOException {
         try {
-            productService.updateProduct(product, "系统", 0);
-            print(String.format("Save-Product Action.  ID: %s  succeed", product.id));
+            productService.updateProduct(newProduct, "系统", 0);
+            print(String.format("Save-Product Action.  ID: %s  succeed", newProduct.id));
         } catch (ServiceException e) {
-            print(e.toString(), String.format("系统错误,保存Product ID: %s 时出错!", product.id));
+            print(e.toString(), String.format("系统错误,保存Product ID: %s 时出错!", newProduct.id));
         }
         skuRelationMap.clear();
 
         //record point
         OutputStream os = new FileOutputStream(pointFile);
-        os.write(String.valueOf(product.id).getBytes());
+        os.write(String.valueOf(newProduct.id).getBytes());
         os.close();
     }
 
     private void migrationSpuStock() {
-        String sqlStockName = "update yitiao_product_sku_stock set name = ? ,is_active = ? where sku_id = ? ";
-
-        String sqlStockRef = "update yitiao_product_sku_stock set sku_id = ? where sku_id = ? ";
-
-        String sqlPriority = "select id from yitiao_product_sku_stock where  sku_id = ? and is_deleted = 0 order by id asc";
+        String sqlStockName = "update yitiao_product_sku_stock set name = ?  where sku_id = ? ";
 
         for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
             SKU masterSku = entry.getKey();
             List<SKU> followSku = entry.getValue();
 
             //master name
-            sqlHelper.exec(sqlStockName, new Object[] {getStockName(masterSku.id), computeDefaultStock(masterSku.id) ? 1 : 0, masterSku.id});
+            sqlHelper.exec(sqlStockName, new Object[] {getStockName(masterSku.id), masterSku.id});
 
             //follower info
             for (SKU sku : followSku) {
-                sqlHelper.exec(sqlStockName, new Object[] {getStockName(sku.id), computeDefaultStock(sku.id) ? 1 : 0, sku.id});
-                Object[] params2 = new Object[] {masterSku.id, sku.id};
-                sqlHelper.exec(sqlStockRef, params2);
-            }
+                sqlHelper.exec(sqlStockName, new Object[] {getStockName(sku.id), sku.id});
 
-            //priority
+            }
+        }
+    }
+
+    private void setStockDefaultActive() {
+        String sqlStockActive = "update yitiao_product_sku_stock set is_active = ? where sku_id = ? ";
+        for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
+            SKU masterSku = entry.getKey();
+            List<SKU> followSkus = entry.getValue();
+            //获取默认库存id
+            int defaultSkuId = computeDefaultStock();
+            sqlHelper.exec(sqlStockActive, new Object[] {defaultSkuId == masterSku.id ? 1 : 0, masterSku.id});
+
+            for (SKU sku : followSkus) {
+                sqlHelper.exec(sqlStockActive, new Object[] {defaultSkuId == sku.id ? 1 : 0, sku.id});
+            }
+        }
+    }
+
+    private void setMultiStockPriority() {
+        String sqlPriority
+            = "select id from yitiao_product_sku_stock where  sku_id = ? and is_deleted = 0 order by id asc";
+        for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
+
+            SKU masterSku = entry.getKey();
             List<Integer> idList = new ArrayList<>();
+
             sqlHelper.exec(sqlPriority, new Object[] {masterSku.id}, (row) -> {
                 idList.add(row.getInt("id"));
             });
-
             for (int i = 0; i < idList.size(); i++) {
                 String sql2 = "update yitiao_product_sku_stock set priority = ? where id = ? ";
                 sqlHelper.exec(sql2, new Object[] {i + 1, idList.get(i)});
             }
         }
-
     }
 
     private String getStockName(int id) {
@@ -204,8 +256,8 @@ public class SpuStockMigrationRunner extends BaseTest {
         return stockName[0];
     }
 
-    private void removeDuplicateValueIdSku(Product product) {
-        List<SKU> skus = product.skuInfo.skus;
+    private void removeDuplicateValueIdSku() {
+        List<SKU> skus = newProduct.skuInfo.skus;
 
         //sku asc sort
         Collections.sort(skus, (x, y) -> {
@@ -216,16 +268,16 @@ public class SpuStockMigrationRunner extends BaseTest {
             }
         });
 
-        Map<String,List<SKU>> temp = new HashMap<>();
+        Map<String, List<SKU>> temp = new HashMap<>();
         for (SKU sku : skus) {
             List<SKU> thisSkus = temp.get(Arrays.toString(sku.valueIds));
             if (CollectionUtils.isEmpty(thisSkus)) {
                 List<SKU> newSkus = new ArrayList<>();
                 newSkus.add(sku);
-                temp.put(Arrays.toString(sku.valueIds),newSkus);
-            }else {
+                temp.put(Arrays.toString(sku.valueIds), newSkus);
+            } else {
                 thisSkus.add(sku);
-                temp.put(Arrays.toString(sku.valueIds),thisSkus);
+                temp.put(Arrays.toString(sku.valueIds), thisSkus);
             }
         }
 
@@ -234,7 +286,7 @@ public class SpuStockMigrationRunner extends BaseTest {
             //存在重复关系
             if (value.size() > 1) {
                 List<SKU> followSkus = value.subList(1, value.size());
-                skuRelationMap.put(value.get(0),followSkus);
+                skuRelationMap.put(value.get(0), followSkus);
 
                 //delete duplicate sku
                 for (SKU followSku : followSkus) {
@@ -243,19 +295,19 @@ public class SpuStockMigrationRunner extends BaseTest {
             }
         }
 
-        product.skuInfo.skus = skus;
+        newProduct.skuInfo.skus = skus;
     }
 
-    private void removeSaleOption(Product product) {
-        int saleOptionIndex = getSaleOptionIndex(product);
-        product.skuInfo.options.remove(saleOptionIndex);
+    private void removeSaleOption() {
+        int saleOptionIndex = getSaleOptionIndex(newProduct);
+        newProduct.skuInfo.options.remove(saleOptionIndex);
 
-        for (int index = 0; index < product.skuInfo.skus.size(); index++) {
-            int[] valueIds = product.skuInfo.skus.get(index).valueIds;
+        for (int index = 0; index < newProduct.skuInfo.skus.size(); index++) {
+            int[] valueIds = newProduct.skuInfo.skus.get(index).valueIds;
             List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
             collect.remove(saleOptionIndex);
             int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
-            product.skuInfo.skus.get(index).valueIds = newValueIds;
+            newProduct.skuInfo.skus.get(index).valueIds = newValueIds;
         }
     }
 
@@ -289,37 +341,22 @@ public class SpuStockMigrationRunner extends BaseTest {
         return saleOptionIndex;
     }
 
-    public boolean computeDefaultStock(int skuId) {
-        final boolean[] isdefaultStock = new boolean[1];
-        oldProduct.skuInfo.skus.forEach(sku -> {
-            if (sku.id == skuId) {
-                //计算是否是默认库存
-                if (!sku.saleInfo.onSale) {
-                    isdefaultStock[0] = false;
-                } else {
-                    //查出所有上架sku,比较id,id最小的设置为默认库存
-                    List<SKU> onSaleSku = oldProduct.skuInfo.skus.stream().filter(x -> x.saleInfo.onSale).collect(
-                        Collectors.toList());
-
-                    Collections.sort(onSaleSku, (x, y) -> {
-                        if (x.id > y.id) {
-                            return 1;
-                        } else {
-                            return -1;
-                        }
-                    });
-
-                    //根据id判断先后顺序
-                    if (onSaleSku.get(0).id == sku.id) {
-                        isdefaultStock[0] = true;
-                    } else {
-                        isdefaultStock[0] = false;
-                    }
-                }
+    public int computeDefaultStock() {
+        List<SKU> skus = oldProduct.skuInfo.skus;
+        skus.sort((x, y) -> {
+            if (x.id > y.id) {
+                return 1;
+            } else {
+                return -1;
             }
         });
+        List<SKU> skuList = skus.stream().filter(x -> x.saleInfo.onSale == true).collect(Collectors.toList());
 
-        return isdefaultStock[0];
+        if (!CollectionUtils.isEmpty(skuList)) {
+            return skuList.get(0).id;
+        } else {
+            return skus.get(0).id;
+        }
     }
 
     public String getMigrationSql() {
