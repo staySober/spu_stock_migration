@@ -24,6 +24,7 @@
 
 
     <bean class="com.yit.runner.SpuStockMigrationRunner" init-method="start"/>
+    <bean class="com.yit.runner.MigrationUtils" id="migrationUtils"/>
 
     <bean id="productService" class="com.alibaba.dubbo.config.spring.ReferenceBean">
         <property name="interface" value="com.yit.product.api.ProductService"/>
