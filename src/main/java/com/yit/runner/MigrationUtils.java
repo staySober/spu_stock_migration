@@ -26,6 +26,7 @@ public class MigrationUtils {
         return
             "insert into yitiao_product_sku_stock "
                 + "( "
+                + "    id,"
                 + "    sku_id, "
                 + "    name, "
                 + "    quantity, "
@@ -36,6 +37,7 @@ public class MigrationUtils {
                 + "    is_active, "
                 + "    is_deleted) "
                 + "select "
+                + "      item_id, "
                 + "      product_id, "
                 + "      '现货／2个工作日发货', "
                 + "      qty, "
