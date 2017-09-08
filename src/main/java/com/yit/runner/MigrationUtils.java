@@ -109,8 +109,8 @@ public class MigrationUtils {
         }
     }
 
-    public void removeDuplicateValueIdSku(Product newProduct, Map<SKU, List<SKU>> skuRelationMap) {
-        List<SKU> skus = newProduct.skuInfo.skus;
+    public void removeDuplicateValueIdSku(Migration migration) {
+        List<SKU> skus = migration.newProduct.skuInfo.skus;
 
         //sku asc sort
         Collections.sort(skus, (x, y) -> {
@@ -139,7 +139,7 @@ public class MigrationUtils {
             //存在重复关系
             if (value.size() > 1) {
                 List<SKU> followSkus = value.subList(1, value.size());
-                skuRelationMap.put(value.get(0), followSkus);
+                migration.skuRelationMap.put(value.get(0), followSkus);
 
                 //delete duplicate sku
                 for (SKU followSku : followSkus) {
@@ -148,7 +148,7 @@ public class MigrationUtils {
             }
         }
 
-        newProduct.skuInfo.skus = skus;
+        migration.newProduct.skuInfo.skus = skus;
     }
 
     public String getStockName(int id, Product oldProduct) {

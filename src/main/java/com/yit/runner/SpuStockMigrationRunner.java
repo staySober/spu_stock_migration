@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
@@ -34,14 +33,12 @@ public class SpuStockMigrationRunner extends BaseTest {
     ProductService productService;
     @Autowired
     SqlHelper sqlHelper;
-
     @Autowired
     MigrationUtils migrationUtils;
 
     List<Integer> spuIdList = new ArrayList<>();
 
     File pointFile = new File("pointRecord.txt");
-
 
     @Override
     public void run() throws Exception {
@@ -52,7 +49,11 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     public void SingleMigrationTest() throws IOException {
-        SpuMigrationMain(4132);
+        Migration migration = new Migration();
+        migration.newProduct = productService.getProductById(4132);
+        migration.oldProduct = JSON.parseObject(JSON.toJSONString(migration.newProduct), Product.class);
+
+        SpuMigrationMain(migration);
     }
 
     public void FullMigration() throws Exception {
@@ -105,15 +106,18 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     private void SpuMigrationMain(Migration migration) throws IOException {
         boolean haveSaleOption = migration.newProduct.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
-
+        boolean spuIsEmpty = migration.newProduct.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(
+            migration.newProduct.skuInfo.skus);
+        boolean spuOnlyOneSku = migration.newProduct.skuInfo.options.size() == 1;
+        boolean spuHaveMoreSku = migration.newProduct.skuInfo.options.size() > 1;
         //spu empty
-        if ((migration.newProduct.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(migration.newProduct.skuInfo.skus))) {
+        if ((spuIsEmpty)) {
             print("WARING : skip Spu ID : -------> " + migration.oldProduct.id + "; spu is empty!");
             return;
         }
 
-        //只有一个销售方式
-        if (migration.newProduct.skuInfo.options.size() == 1 && haveSaleOption) {
+        //只有一个规格 销售方式
+        if (spuOnlyOneSku && haveSaleOption) {
             Option option = migrationUtils.makeUpNoOption();
             migration.newProduct.skuInfo.options.add(option);
             //给sku添加valueIds
@@ -128,13 +132,13 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
 
         //多规格且有销售方式
-        if (migration.newProduct.skuInfo.options.size() > 1 && haveSaleOption) {
+        if (spuHaveMoreSku && haveSaleOption) {
             migrationUtils.removeSaleOption(migration.newProduct);
         }
 
-        migrationUtils.removeDuplicateValueIdSku(migration.newProduct,migration.skuRelationMap);
+        migrationUtils.removeDuplicateValueIdSku(migration);
 
-        migrationSpuStock(migration);
+        setMutliStockName(migration);
 
         setMultiStockPriority(migration);
 
@@ -186,24 +190,14 @@ public class SpuStockMigrationRunner extends BaseTest {
         os.close();
     }
 
-    private void migrationSpuStock(Migration migration) {
+    private void setMutliStockName(Migration migration) {
         String sqlStockName = "update yitiao_product_sku_stock set name = ?  where sku_id = ? ";
-
-        for (Entry<SKU, List<SKU>> entry : migration.skuRelationMap.entrySet()) {
-            SKU masterSku = entry.getKey();
-            List<SKU> followSku = entry.getValue();
-
-            //todo test
-            String stockName = migrationUtils.getStockName(masterSku.id, migration.oldProduct);
-            //master name
-            sqlHelper.exec(sqlStockName, new Object[] {migrationUtils.getStockName(masterSku.id,migration.oldProduct), masterSku.id});
-
-            //follower info
-            for (SKU sku : followSku) {
-                sqlHelper.exec(sqlStockName, new Object[] {migrationUtils.getStockName(sku.id,migration.oldProduct), sku.id});
-
+        migration.oldProduct.skuInfo.skus.forEach(sku -> {
+            String stockName = migrationUtils.getStockName(sku.id, migration.oldProduct);
+            if (!StringUtils.isBlank(stockName)) {
+                sqlHelper.exec(sqlStockName, new Object[] {stockName, sku.id});
             }
-        }
+        });
     }
 
     private void setStockDefaultActive(Migration migration) {
@@ -225,7 +219,6 @@ public class SpuStockMigrationRunner extends BaseTest {
         String sqlPriority
             = "select id from yitiao_product_sku_stock where  sku_id = ? and is_deleted = 0 order by id asc";
         for (Entry<SKU, List<SKU>> entry : migration.skuRelationMap.entrySet()) {
-
             SKU masterSku = entry.getKey();
             List<Integer> idList = new ArrayList<>();
 
