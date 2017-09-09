@@ -8,12 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-
 import com.alibaba.dubbo.common.utils.CollectionUtils;
-
 import com.yit.product.entity.Product;
-import com.yit.product.entity.Product.Option;
-import com.yit.product.entity.Product.Option.Value;
 import com.yit.product.entity.Product.SKU;
 
 /**
@@ -37,7 +33,7 @@ public class MigrationUtils {
                 + "    is_active, "
                 + "    is_deleted) "
                 + "select "
-                + "      item_id, "
+                + "      product_id, "
                 + "      product_id, "
                 + "      '现货／2个工作日发货', "
                 + "      qty, "
@@ -76,26 +72,12 @@ public class MigrationUtils {
                 break;
             }
         }
-
         if (saleOptionIndex == -1) {
             throw new RuntimeException(
                 String.format("SPU: %s 获取销售方式option下标发生异常,请检查该SPU是否有 销售方式 option!", product.id));
         }
-        return saleOptionIndex;
-    }
 
-    public Option makeUpNoOption() {
-        Option option = new Option();
-        option.label = "无规格";
-        option.position = 0;
-        List<Value> values = new ArrayList<>();
-        Value value = new Value();
-        value.label = "无规格值";
-        value.position = 0;
-        value.valueId = 0;
-        values.add(value);
-        option.values = values;
-        return option;
+        return saleOptionIndex;
     }
 
     public void removeSaleOption(Product newProduct) {
@@ -153,6 +135,7 @@ public class MigrationUtils {
         migration.newProduct.skuInfo.skus = skus;
     }
 
+    //todo 有些商品本身就没有销售方式 不能从销售方式取库存名称
     public String getStockName(int id, Product oldProduct) {
         final String[] stockName = new String[1];
         oldProduct.skuInfo.skus.forEach(sku -> {

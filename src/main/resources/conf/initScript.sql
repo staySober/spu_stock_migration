@@ -3,8 +3,6 @@ set notify_quantity = 0
 where
 notify_quantity is null;
 
-
-
 insert into yitiao_product_sku_stock_history
 (
     id,
@@ -28,7 +26,6 @@ insert into yitiao_product_sku_stock_history
     operator,
     operator_id
  from yitiao_stock_history;
-
 
 update yitiao_product_sku_stock_history history
 set

@@ -20,6 +20,7 @@ import com.yit.entity.ServiceException;
 import com.yit.product.api.ProductService;
 import com.yit.product.entity.Product;
 import com.yit.product.entity.Product.Option;
+import com.yit.product.entity.Product.Option.Value;
 import com.yit.product.entity.Product.SKU;
 import com.yit.test.BaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,16 +44,15 @@ public class SpuStockMigrationRunner extends BaseTest {
     @Override
     public void run() throws Exception {
         //test func
-        SingleMigrationTest();
+        //SingleMigrationTest();
         //main func
-        //FullMigration();
+        FullMigration();
     }
 
     public void SingleMigrationTest() throws IOException {
         Migration migration = new Migration();
         migration.newProduct = productService.getProductById(4132);
         migration.oldProduct = JSON.parseObject(JSON.toJSONString(migration.newProduct), Product.class);
-
         SpuMigrationMain(migration);
     }
 
@@ -106,49 +106,61 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     private void SpuMigrationMain(Migration migration) throws IOException {
         boolean haveSaleOption = migration.newProduct.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
-        boolean spuIsEmpty = migration.newProduct.skuInfo.options.size() <= 0 && CollectionUtils.isEmpty(
-            migration.newProduct.skuInfo.skus);
-        boolean spuOnlyOneSku = migration.newProduct.skuInfo.options.size() == 1;
-        boolean spuHaveMoreSku = migration.newProduct.skuInfo.options.size() > 1;
-        //spu empty
+        boolean spuIsEmpty = migration.newProduct.skuInfo.options.size() <= 0
+                             && CollectionUtils.isEmpty(migration.newProduct.skuInfo.skus);
+        boolean spuOnlyOneOption = migration.newProduct.skuInfo.options.size() == 1;
+        boolean haveOptionAndSkuListNotEmpty = migration.newProduct.skuInfo.options.size() > 0
+                                                && migration.newProduct.skuInfo.skus.size() > 0;
+
         if ((spuIsEmpty)) {
             print("WARING : skip Spu ID : -------> " + migration.oldProduct.id + "; spu is empty!");
             return;
         }
 
-        //只有一个规格 销售方式
-        if (spuOnlyOneSku && haveSaleOption) {
-            Option option = migrationUtils.makeUpNoOption();
-            migration.newProduct.skuInfo.options.add(option);
-            //给sku添加valueIds
-            migration.newProduct.skuInfo.skus.forEach(sku -> {
-                int[] valueIds = sku.valueIds;
-                List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
-                collect.add(option.values.get(0).valueId);
-                int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
-                sku.valueIds = newValueIds;
-            });
+        if (haveSaleOption) {
+            if (spuOnlyOneOption) {
+                addNoOption(migration);
+            }
             migrationUtils.removeSaleOption(migration.newProduct);
+            migrationUtils.removeDuplicateValueIdSku(migration);
+            setMutliStockName(migration);
         }
 
-        //多规格且有销售方式
-        if (spuHaveMoreSku && haveSaleOption) {
-            migrationUtils.removeSaleOption(migration.newProduct);
+        //have option,have sku,do next
+        if (haveOptionAndSkuListNotEmpty) {
+
+            setMultiStockPriority(migration);
+
+            setStockDefaultActive(migration);
+
+            updateSkuSaleStatus(migration);
+
+            updateStockRelation(migration);
         }
-
-        migrationUtils.removeDuplicateValueIdSku(migration);
-
-        setMutliStockName(migration);
-
-        setMultiStockPriority(migration);
-
-        setStockDefaultActive(migration);
-
-        updateSkuSaleStatus(migration);
-
-        updateStockRelation(migration);
 
         saveNewProduct(migration);
+    }
+
+    private void addNoOption(Migration migration) {
+        Option option = new Option();
+        option.label = "无规格";
+        option.position = 0;
+        List<Value> values = new ArrayList<>();
+        Value value = new Value();
+        value.label = "无规格值";
+        value.position = 0;
+        value.valueId = 0;
+        values.add(value);
+        option.values = values;
+        migration.newProduct.skuInfo.options.add(option);
+        //给sku添加valueIds
+        migration.newProduct.skuInfo.skus.forEach(sku -> {
+            int[] valueIds = sku.valueIds;
+            List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
+            collect.add(option.values.get(0).valueId);
+            int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
+            sku.valueIds = newValueIds;
+        });
     }
 
     private void updateSkuSaleStatus(Migration migration) {
