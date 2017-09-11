@@ -63,6 +63,7 @@ public class MainMigration extends BaseTest {
 
         // 执行初始化SQL
         if (lastSpuId <=0) {
+            print("运行初始化SQL");
             sqlHelper.exec(getMigrationSql());
             String absolutePath = new File("conf/initScript.sql").getAbsolutePath();
             String sqls = readStringFromFile(absolutePath);
@@ -80,6 +81,7 @@ public class MainMigration extends BaseTest {
             spuIdList.add(row.getInt("id"));
         });
         spuIdList.forEach(spuId -> {
+            print("迁移SPU: %s", spuId);
             SpuMigration spuMigration = new SpuMigration();
             spuMigration.productService = productService;
             spuMigration.sqlHelper = sqlHelper;
@@ -89,6 +91,7 @@ public class MainMigration extends BaseTest {
         });
 
         // 结束SQL
+        print("运行结束SQL");
         sqlHelper.exec(readStringFromFile(new File("conf/endScript.sql").getAbsolutePath()));
     }
 }
