@@ -10,11 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-
-import com.alibaba.dubbo.common.utils.CollectionUtils;
 import com.alibaba.dubbo.common.utils.StringUtils;
 import com.alibaba.fastjson.JSON;
-
 import com.yit.common.utils.SqlHelper;
 import com.yit.entity.ServiceException;
 import com.yit.product.api.ProductService;
@@ -43,9 +40,6 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     @Override
     public void run() throws Exception {
-        //test func
-        //SingleMigrationTest();
-        //main func
         FullMigration();
     }
 
@@ -68,7 +62,7 @@ public class SpuStockMigrationRunner extends BaseTest {
         }
 
         sqlHelper.exec(readStringFromFile(new File("conf/endScript.sql").getAbsolutePath()));
-        print("Finished!");
+        print("Migration finished!");
     }
 
     private void init() throws Exception {
@@ -105,10 +99,10 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     private void SpuMigrationMain(Migration migration) throws IOException {
+        boolean spuOnlyOneOption = migration.newProduct.skuInfo.options.size() == 1;
         boolean haveSaleOption = migration.newProduct.skuInfo.options.stream().anyMatch(x -> "销售方式".equals(x.label));
         boolean spuIsEmpty = migration.newProduct.skuInfo.options.size() <= 0
-                             && CollectionUtils.isEmpty(migration.newProduct.skuInfo.skus);
-        boolean spuOnlyOneOption = migration.newProduct.skuInfo.options.size() == 1;
+                             && migration.newProduct.skuInfo.skus.size() <= 0;
         boolean haveOptionAndSkuListNotEmpty = migration.newProduct.skuInfo.options.size() > 0
                                                 && migration.newProduct.skuInfo.skus.size() > 0;
 

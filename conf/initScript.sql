@@ -6,6 +6,7 @@ notify_quantity is null;
 insert into yitiao_product_sku_stock_history
 (
     id,
+    stock_id,
     sku_id,
     operation_time,
     adjust_amount,
@@ -18,6 +19,7 @@ insert into yitiao_product_sku_stock_history
  select
     id,
     product_id,
+    product_id,
     operation_time,
     ajust_amount,
     current_amount,
@@ -27,12 +29,3 @@ insert into yitiao_product_sku_stock_history
     operator_id
  from yitiao_stock_history;
 
-update yitiao_product_sku_stock_history history
-set
-    stock_id  = (
-    select
-        id
-    from yitiao_product_sku_stock stock
-    where
-        history.sku_id = stock.sku_id
-    )
