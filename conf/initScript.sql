@@ -28,4 +28,3 @@ insert into yitiao_product_sku_stock_history
     operator,
     operator_id
  from yitiao_stock_history;
-

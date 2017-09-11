@@ -66,11 +66,18 @@ public class SpuMigration {
         });
 
         // 设置库存优先级
-        stockList.sort((a, b) -> {
-            return Integer.compare(a.id, b.id);
+        stockList.forEach(skuStock -> {
+            skuStock.priority = 1;
         });
-        for (int index = 0; index < stockList.size(); ++index) {
-            stockList.get(index).priority = index + 1;
+        for (Entry<SKU, List<SKU>> entry : skuRelationMap.entrySet()) {
+            List<SKU> skuList = getSkuList(entry);
+            skuList.sort((a, b) -> {
+                return Integer.compare(a.id, b.id);
+            });
+            for (int i = 0; i < skuList.size(); i++) {
+                SkuStock stock = getStock(skuList.get(i).id);
+                stock.priority = i + 1;
+            }
         }
 
         // 设置生效库存
@@ -194,14 +201,16 @@ public class SpuMigration {
      */
     public void removeSaleOption() {
         int saleOptionIndex = Utils.getOptionIndex(newProduct, "销售方式");
-        newProduct.skuInfo.options.remove(saleOptionIndex);
+        if (saleOptionIndex > -1) {
+            newProduct.skuInfo.options.remove(saleOptionIndex);
 
-        for (int index = 0; index < newProduct.skuInfo.skus.size(); index++) {
-            int[] valueIds = newProduct.skuInfo.skus.get(index).valueIds;
-            List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
-            collect.remove(saleOptionIndex);
-            int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
-            newProduct.skuInfo.skus.get(index).valueIds = newValueIds;
+            for (int index = 0; index < newProduct.skuInfo.skus.size(); index++) {
+                int[] valueIds = newProduct.skuInfo.skus.get(index).valueIds;
+                List<Integer> collect = Arrays.stream(valueIds).boxed().collect(Collectors.toList());
+                collect.remove(saleOptionIndex);
+                int[] newValueIds = collect.stream().mapToInt(x -> x).toArray();
+                newProduct.skuInfo.skus.get(index).valueIds = newValueIds;
+            }
         }
     }
 

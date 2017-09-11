@@ -136,7 +136,6 @@ public class MigrationUtils {
         migration.newProduct.skuInfo.skus = skus;
     }
 
-
     public String getStockName(int id, Product oldProduct) {
         final String[] stockName = new String[1];
         oldProduct.skuInfo.skus.forEach(sku -> {

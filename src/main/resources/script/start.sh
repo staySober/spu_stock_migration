@@ -10,7 +10,7 @@ JAVA_OPTS="${JAVA_OPTS}  ${JAVA_OPT_7}"
 
 JAVA="java"
 
-KEYWORD="com.yit.runner.SpuStockMigrationRunner"
+KEYWORD="com.yit.runner.MainMigration"
 
 function startService {
    $JAVA $JAVA_OPTS $KEYWORD

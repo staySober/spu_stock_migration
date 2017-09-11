@@ -46,7 +46,7 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     public void SingleMigrationTest() throws IOException {
         Migration migration = new Migration();
-        migration.newProduct = productService.getProductById(23721);
+        migration.newProduct = productService.getProductById(100);
         migration.oldProduct = JSON.parseObject(JSON.toJSONString(migration.newProduct), Product.class);
         migration.skuRelationMap = new HashMap<>();
         SpuMigrationMain(migration);
