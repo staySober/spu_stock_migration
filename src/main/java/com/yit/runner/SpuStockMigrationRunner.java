@@ -40,13 +40,15 @@ public class SpuStockMigrationRunner extends BaseTest {
 
     @Override
     public void run() throws Exception {
+        //SingleMigrationTest();
         FullMigration();
     }
 
     public void SingleMigrationTest() throws IOException {
         Migration migration = new Migration();
-        migration.newProduct = productService.getProductById(4132);
+        migration.newProduct = productService.getProductById(23721);
         migration.oldProduct = JSON.parseObject(JSON.toJSONString(migration.newProduct), Product.class);
+        migration.skuRelationMap = new HashMap<>();
         SpuMigrationMain(migration);
     }
 
@@ -158,13 +160,19 @@ public class SpuStockMigrationRunner extends BaseTest {
     }
 
     private void updateSkuSaleStatus(Migration migration) {
-        int skuId = migrationUtils.computeDefaultStock(migration.oldProduct);
-        SKU activeSku = migration.oldProduct.skuInfo.skus.stream().filter(x -> x.id == skuId).findFirst().get();
-        boolean isOnsale = activeSku.saleInfo.onSale;
         for (Entry<SKU, List<SKU>> entry : migration.skuRelationMap.entrySet()) {
-            SKU maskterSku = entry.getKey();
+            SKU masterSku = entry.getKey();
+            List<SKU> followSkus = entry.getValue();
+            //get default stock Id
+            List<Integer> computSkuArea = new ArrayList<>();
+            computSkuArea.add(masterSku.id);
+            computSkuArea.addAll(followSkus.stream().map(x->x.id).collect(Collectors.toList()));
+            int skuId = migrationUtils.computeDefaultStock(migration.oldProduct,computSkuArea);
+            SKU activeSku = migration.oldProduct.skuInfo.skus.stream().filter(x -> x.id == skuId).findFirst().get();
+            boolean isOnsale = activeSku.saleInfo.onSale;
+
             migration.newProduct.skuInfo.skus.forEach(sku -> {
-                if (sku.id == maskterSku.id) {
+                if (sku.id == masterSku.id) {
                     sku.saleInfo.onSale = isOnsale;
                 }
             });
@@ -212,11 +220,14 @@ public class SpuStockMigrationRunner extends BaseTest {
             SKU masterSku = entry.getKey();
             List<SKU> followSkus = entry.getValue();
             //获取默认库存id
-            int defaultSkuId = migrationUtils.computeDefaultStock(migration.oldProduct);
-            sqlHelper.exec(sqlStockActive, new Object[] {defaultSkuId == masterSku.id ? 1 : 0, masterSku.id});
+            List<Integer> computSkuArea = new ArrayList<>();
+            computSkuArea.add(masterSku.id);
+            computSkuArea.addAll(followSkus.stream().map(x->x.id).collect(Collectors.toList()));
+            int defaultSkuId = migrationUtils.computeDefaultStock(migration.oldProduct,computSkuArea);
+            sqlHelper.exec(sqlStockActive, new Object[] {masterSku.id == defaultSkuId ? 1 : 0, masterSku.id});
 
             for (SKU sku : followSkus) {
-                sqlHelper.exec(sqlStockActive, new Object[] {defaultSkuId == sku.id ? 1 : 0, sku.id});
+                sqlHelper.exec(sqlStockActive, new Object[] {sku.id == defaultSkuId ? 1 : 0, sku.id});
             }
         }
     }

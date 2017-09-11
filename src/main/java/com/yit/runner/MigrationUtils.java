@@ -46,8 +46,9 @@ public class MigrationUtils {
                 + "from cataloginventory_stock_item";
     }
 
-    public int computeDefaultStock(Product oldProduct) {
-        List<SKU> skus = oldProduct.skuInfo.skus;
+    public int computeDefaultStock(Product oldProduct,List<Integer> computeSkuArea) {
+        List<SKU> skus = oldProduct.skuInfo.skus.stream().filter(x->computeSkuArea.contains(x.id))
+                                                         .collect(Collectors.toList());
         skus.sort((x, y) -> {
             if (x.id > y.id) {
                 return 1;
@@ -135,7 +136,7 @@ public class MigrationUtils {
         migration.newProduct.skuInfo.skus = skus;
     }
 
-    //todo 有些商品本身就没有销售方式 不能从销售方式取库存名称
+
     public String getStockName(int id, Product oldProduct) {
         final String[] stockName = new String[1];
         oldProduct.skuInfo.skus.forEach(sku -> {
