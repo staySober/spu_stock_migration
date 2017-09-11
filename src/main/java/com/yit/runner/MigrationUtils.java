@@ -43,7 +43,7 @@ public class MigrationUtils {
                 + "      status, "
                 + "      1, "
                 + "      0 "
-                + "from cataloginventory_stock_item;";
+                + "from cataloginventory_stock_item";
     }
 
     public int computeDefaultStock(Product oldProduct) {
