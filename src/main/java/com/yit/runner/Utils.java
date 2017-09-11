@@ -27,6 +27,9 @@ public class Utils {
      */
     public static String getStockName(Product product, int skuId) {
         int optionIndex = getOptionIndex(product, "销售方式");
+        if (optionIndex == -1) {
+            return null;
+        }
         Product.SKU sku = product.getSKUById(skuId);
         int valueId = sku.valueIds[optionIndex];
         for (Product.Option.Value value : product.skuInfo.options.get(optionIndex).values) {
