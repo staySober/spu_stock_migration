@@ -109,5 +109,14 @@ public abstract class BaseTest {
         return new String(readByteFromFile(path));
     }
 
+    public void writeStringToFile(String path, String content)  throws Exception {
+        byte[] bytes = content.getBytes();
+        writeByteToFile(path, bytes);
+    }
+
+    public void writeByteToFile(String path, byte[] bytes) throws Exception {
+        Files.write(Paths.get(path), bytes);
+    }
+
     // endregion
 }
