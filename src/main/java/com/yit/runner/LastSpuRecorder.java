@@ -1,7 +1,6 @@
 package com.yit.runner;
 
 import java.io.File;
-
 import com.yit.test.BaseTest;
 
 /**

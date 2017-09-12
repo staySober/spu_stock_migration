@@ -3,9 +3,7 @@ package com.yit.runner;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-
 import com.alibaba.dubbo.common.utils.StringUtils;
-
 import com.yit.common.utils.SqlHelper;
 import com.yit.product.api.ProductService;
 import com.yit.test.BaseTest;
@@ -93,6 +91,12 @@ public class MainMigration extends BaseTest {
 
         // 结束SQL
         print("run end SQL");
-        sqlHelper.exec(readStringFromFile(new File("conf/endScript.sql").getAbsolutePath()));
+        String endSqls = readStringFromFile(new File("conf/endScript.sql").getAbsolutePath());
+        for (String endSql : endSqls.split(";")) {
+            if (!StringUtils.isBlank(endSql)){
+                sqlHelper.exec(endSql);
+            }
+        }
+
     }
 }

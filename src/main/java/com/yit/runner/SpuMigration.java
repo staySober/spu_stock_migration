@@ -3,16 +3,13 @@ package com.yit.runner;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-
-import com.alibaba.dubbo.common.utils.CollectionUtils;
 import com.alibaba.fastjson.JSON;
-
 import com.yit.common.utils.CommonUtils;
 import com.yit.common.utils.SqlHelper;
 import com.yit.product.api.ProductService;
