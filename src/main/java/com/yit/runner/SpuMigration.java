@@ -136,6 +136,11 @@ public class SpuMigration {
 
         // 保存产品
         try {
+            newProduct.basicInfo = null;
+            newProduct.textInfo = null;
+            newProduct.extraAttributes = null;
+            newProduct.saleInfo = null;
+            newProduct.imageInfo = null;
             productService.updateProduct(newProduct, "去销售方式", 0);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
