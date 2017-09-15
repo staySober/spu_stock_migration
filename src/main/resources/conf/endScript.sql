@@ -1,7 +1,3 @@
-UPDATE yitiao_product_sku
-SET option_text = ''
-WHERE option_text LIKE '%无规格%';
-
 insert into yitiao_product_sku_stock_history
 (
     id,

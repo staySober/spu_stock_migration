@@ -92,6 +92,8 @@ public class MainMigration extends BaseTest {
 
         // 结束SQL
         print("run end SQL");
+        String updateOptionText = "UPDATE yitiao_product_sku SET option_text = '' WHERE option_text LIKE '%无规格%' ";
+        sqlHelper.exec(updateOptionText);
         String endSqls = readStringFromFile(new File("conf/endScript.sql").getAbsolutePath());
         for (String endSql : endSqls.split(";")) {
             if (!StringUtils.isBlank(endSql)){
