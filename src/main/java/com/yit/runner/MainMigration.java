@@ -6,6 +6,7 @@ import java.util.List;
 import com.alibaba.dubbo.common.utils.StringUtils;
 import com.yit.common.utils.SqlHelper;
 import com.yit.product.api.ProductService;
+import com.yit.product.entity.Product;
 import com.yit.test.BaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -98,5 +99,19 @@ public class MainMigration extends BaseTest {
             }
         }
 
+        //reload spu
+        String reloadSpu = "select id from yitiao_product_spu";
+        List<Integer> reloadList = new ArrayList<>();
+        sqlHelper.exec(reloadSpu, (row) -> {
+            int id = row.getInt("id");
+            reloadList.add(id);
+        });
+
+        for (Integer spuId : reloadList) {
+            Product product = new Product();
+            product.id = spuId;
+            productService.updateProduct(product, "系统", 0);
+            print("Spu reload ID : " + spuId);
+        }
     }
 }
